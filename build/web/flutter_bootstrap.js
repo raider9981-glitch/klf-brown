@@ -45,3 +45,4 @@ _flutter.loader.load({
     serviceWorkerVersion: "2726876787" /* Flutter's service worker is deprecated and will be removed in a future Flutter release. */
   }
 });
+
