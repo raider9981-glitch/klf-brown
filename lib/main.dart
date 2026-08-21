@@ -1,18 +1,15 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.4
+// 版本：v1.1.5
 //
 // 本次版本修改內容：
-// 1. 化驗頁面右上角新增「管理者設定」入口
-// 2. 進入管理者設定前需要輸入管理者密碼
-// 3. 管理者密碼正確後進入原有管理者設定頁面
-// 4. 可直接在化驗頁面新增、刪除授權人員
-// 5. 原登入頁面的管理者登入功能保留
-// 6. 化驗計算公式完全不變
-// 7. 咬食量計算完全不變
-// 8. 化驗存檔功能完全不變
-// 9. 化驗資料編輯功能完全不變
-// 10. 管理者刪除化驗資料功能完全不變
+// 1. 化驗畫面增加「邀請開啟網站」QR Code
+// 2. QR Code 掃描後直接開啟 KLF-棕化網站
+// 3. 不自動授權
+// 4. 不修改原有授權人員系統
+// 5. 不修改化驗計算公式
+// 6. 不修改化驗存檔功能
+// 7. 不修改管理者權限功能
 //
 // ============================================================
 
@@ -20,6 +17,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
   runApp(const KLFApp());
@@ -27,8 +25,11 @@ void main() {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.4';
+  static const String version = 'v1.1.5';
   static const String adminPassword = '0';
+
+  static const String websiteUrl =
+      'https://raider9981-glitch.github.io/klf-brown/';
 
   static const String storageAuthorizedUsers = 'klf_authorized_users';
   static const String storageDeviceUser = 'klf_device_user';
@@ -1056,81 +1057,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return (before - after) / 100 * 21910;
   }
 
-  // ============================================================
-  // v1.1.4 新增
-  // 化驗頁面直接進入管理者設定
-  // ============================================================
-  void _openAdminSettings() {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text('管理者驗證'),
-          content: TextField(
-            controller: controller,
-            obscureText: true,
-            autofocus: true,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) {
-              if (controller.text == KLFConfig.adminPassword) {
-                Navigator.pop(context);
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AdminPage()),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('管理者密碼錯誤'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
-            decoration: const InputDecoration(
-              labelText: '管理者密碼',
-              prefixIcon: Icon(Icons.lock_outline),
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (controller.text == KLFConfig.adminPassword) {
-                  Navigator.pop(context);
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AdminPage()),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('管理者密碼錯誤'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-              child: const Text('確認'),
-            ),
-          ],
-        );
-      },
-    ).then((_) {
-      controller.dispose();
-    });
-  }
-
   void saveRecord() {
     final settings = getSettings(widget.lineName);
 
@@ -1181,6 +1107,63 @@ class _AnalysisPageState extends State<AnalysisPage> {
         content: Text('化驗資料已存檔'),
         behavior: SnackBarBehavior.floating,
       ),
+    );
+  }
+
+  // ============================================================
+  // QR Code
+  // ============================================================
+
+  void showWebsiteQrCode() {
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.qr_code_2),
+              SizedBox(width: 10),
+              Text('KLF-棕化網站 QR Code'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '使用手機掃描 QR Code 即可開啟 KLF-棕化網站',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  color: Colors.white,
+                  child: QrImageView(
+                    data: KLFConfig.websiteUrl,
+                    version: QrVersions.auto,
+                    size: 250,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  '掃描後仍需使用已授權名稱登入',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('關閉'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1451,15 +1434,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.lineName}｜藥水化驗'),
-        // ========================================================
-        // v1.1.4 新增：化驗頁面管理者設定
-        // ========================================================
         actions: [
           IconButton(
-            tooltip: '管理者設定',
-            icon: const Icon(Icons.admin_panel_settings_outlined),
-            onPressed: _openAdminSettings,
+            tooltip: '邀請開啟網站',
+            icon: const Icon(Icons.qr_code_2),
+            onPressed: showWebsiteQrCode,
           ),
+          const SizedBox(width: 6),
         ],
       ),
       body: Center(
@@ -1490,9 +1471,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 color: const Color(0xFFEDE4DE),
                 child: const Padding(
                   padding: EdgeInsets.all(14),
-                  child: Text(
-                    '顯示方式：咬食量 → 滴定值 → 中值 → 濃度 → 需添加量',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '顯示方式：咬食量 → 滴定值 → 中值 → 濃度 → 需添加量',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Icon(Icons.qr_code_2),
+                    ],
                   ),
                 ),
               ),
@@ -1838,7 +1827,6 @@ class _RecordsPageState extends State<RecordsPage> {
       children: [
         const Divider(),
         const SizedBox(height: 8),
-
         Card(
           color: const Color(0xFFEDE4DE),
           child: Padding(
@@ -1862,16 +1850,12 @@ class _RecordsPageState extends State<RecordsPage> {
             ),
           ),
         ),
-
         const SizedBox(height: 12),
-
         const Text(
           '化驗結果',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-
         const SizedBox(height: 10),
-
         ...chemicals.entries.map((entry) {
           final key = entry.key;
 
