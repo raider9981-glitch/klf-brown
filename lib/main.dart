@@ -1,16 +1,19 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.5
+// 版本：v1.1.6
 //
 // 本次版本修改內容：
-// 1. 在 A線／B線選擇畫面增加「邀請開啟網站」QR Code
-// 2. QR Code 掃描後直接開啟 KLF-棕化網站
-// 3. QR Code 不放在化驗畫面
-// 4. 不自動授權
-// 5. 不修改原有授權人員系統
-// 6. 不修改化驗計算公式
-// 7. 不修改化驗存檔功能
-// 8. 不修改管理者權限功能
+// 1. 首頁右上角增加「管理者」入口
+// 2. 一般人員登入後可直接進入管理者登入
+// 3. 管理者密碼維持原本設定
+// 4. QR Code 移至「化驗前一個畫面」首頁
+// 5. QR Code 不放在化驗畫面
+// 6. QR Code 掃描後直接開啟 KLF-棕化網站
+// 7. 不自動授權
+// 8. 不修改原有授權人員系統
+// 9. 不修改化驗計算公式
+// 10. 不修改化驗存檔功能
+// 11. 不修改管理者權限功能
 //
 // ============================================================
 
@@ -26,7 +29,7 @@ void main() {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.5';
+  static const String version = 'v1.1.6';
   static const String adminPassword = '0';
 
   static const String websiteUrl =
@@ -649,17 +652,16 @@ class _AdminPageState extends State<AdminPage> {
   }
 }
 
-// ============================================================
-// 首頁／A線B線選擇畫面
-// QR Code 放在這個畫面
-// ============================================================
-
 class HomePage extends StatelessWidget {
   final String userName;
 
   const HomePage({super.key, required this.userName});
 
-  void _showWebsiteQrCode(BuildContext context) {
+  // ============================================================
+  // QR Code
+  // ============================================================
+
+  void showWebsiteQrCode(BuildContext context) {
     showDialog(
       context: context,
       builder: (_) {
@@ -712,6 +714,13 @@ class HomePage extends StatelessWidget {
     );
   }
 
+  void openAdmin(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AdminLoginPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -721,14 +730,29 @@ class HomePage extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          // ========================================================
+          // 管理者入口
+          // ========================================================
+          IconButton(
+            tooltip: '管理者',
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            onPressed: () {
+              openAdmin(context);
+            },
+          ),
+
+          // ========================================================
+          // QR Code 入口
+          // 放在化驗前一個畫面，不放在化驗畫面
+          // ========================================================
           IconButton(
             tooltip: '邀請開啟網站',
             icon: const Icon(Icons.qr_code_2),
             onPressed: () {
-              _showWebsiteQrCode(context);
+              showWebsiteQrCode(context);
             },
           ),
-          const SizedBox(width: 6),
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Center(
@@ -1442,7 +1466,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.lineName}｜藥水化驗')),
+      appBar: AppBar(title: Text('${widget.lineName}｜藥水化驗'), actions: const []),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
@@ -1477,7 +1501,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
-                      SizedBox(width: 10),
                     ],
                   ),
                 ),
@@ -2013,9 +2036,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
     final actual = roundToTenth(current);
 
-    if (actual >= middle) {
-      return 0;
-    }
+    if (actual >= middle) return 0;
 
     final deficit = roundToTenth(middle - actual);
 
