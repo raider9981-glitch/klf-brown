@@ -1,25 +1,18 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.3
+// 版本：v1.1.4
 //
 // 本次版本修改內容：
-// 1. 只有管理者可以刪除化驗資料
-// 2. 一般化驗人員不可刪除化驗資料
-// 3. 化驗結果完整顯示濃度及需添加量
-// 4. 化驗結果完整顯示咬食量
-// 5. 化驗存檔查看時完整顯示所有化驗結果
-// 6. 編輯存檔後重新計算濃度、添加量、咬食量
-// 7. A線、B線中值維持分開設定
-// 8. 所有濃度固定顯示小數點後1位
-// 9. 添加量以濃度小數第1位為計算基準
-// 10. 銅離子無中值，不計算添加量
-// 11. CBBA-A直接輸入濃度
-// 12. 保留瀏覽器 localStorage 存檔
-// 13. 化驗存檔結果只顯示咬食量，不顯示未棕化重量、已棕化重量
-// 14. 需添加量使用紅色字體
-// 15. 不用添加使用綠色字體
-// 16. 化驗頁面將「咬食量」移至第一順位
-// 17. 化驗存檔查看頁面將「咬食量」移至第一順位
+// 1. 化驗頁面右上角新增「管理者設定」入口
+// 2. 進入管理者設定前需要輸入管理者密碼
+// 3. 管理者密碼正確後進入原有管理者設定頁面
+// 4. 可直接在化驗頁面新增、刪除授權人員
+// 5. 原登入頁面的管理者登入功能保留
+// 6. 化驗計算公式完全不變
+// 7. 咬食量計算完全不變
+// 8. 化驗存檔功能完全不變
+// 9. 化驗資料編輯功能完全不變
+// 10. 管理者刪除化驗資料功能完全不變
 //
 // ============================================================
 
@@ -34,7 +27,7 @@ void main() {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.3';
+  static const String version = 'v1.1.4';
   static const String adminPassword = '0';
 
   static const String storageAuthorizedUsers = 'klf_authorized_users';
@@ -1063,6 +1056,81 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return (before - after) / 100 * 21910;
   }
 
+  // ============================================================
+  // v1.1.4 新增
+  // 化驗頁面直接進入管理者設定
+  // ============================================================
+  void _openAdminSettings() {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('管理者驗證'),
+          content: TextField(
+            controller: controller,
+            obscureText: true,
+            autofocus: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) {
+              if (controller.text == KLFConfig.adminPassword) {
+                Navigator.pop(context);
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AdminPage()),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('管理者密碼錯誤'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            decoration: const InputDecoration(
+              labelText: '管理者密碼',
+              prefixIcon: Icon(Icons.lock_outline),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (controller.text == KLFConfig.adminPassword) {
+                  Navigator.pop(context);
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminPage()),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('管理者密碼錯誤'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              child: const Text('確認'),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      controller.dispose();
+    });
+  }
+
   void saveRecord() {
     final settings = getSettings(widget.lineName);
 
@@ -1381,7 +1449,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.lineName}｜藥水化驗')),
+      appBar: AppBar(
+        title: Text('${widget.lineName}｜藥水化驗'),
+        // ========================================================
+        // v1.1.4 新增：化驗頁面管理者設定
+        // ========================================================
+        actions: [
+          IconButton(
+            tooltip: '管理者設定',
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            onPressed: _openAdminSettings,
+          ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
@@ -1419,9 +1499,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
               const SizedBox(height: 12),
 
-              // ======================================================
-              // 咬食量第一順位
-              // ======================================================
               biteCard(),
 
               const SizedBox(height: 12),
@@ -1762,9 +1839,6 @@ class _RecordsPageState extends State<RecordsPage> {
         const Divider(),
         const SizedBox(height: 8),
 
-        // ======================================================
-        // 咬食量第一順位
-        // ======================================================
         Card(
           color: const Color(0xFFEDE4DE),
           child: Padding(
@@ -2188,9 +2262,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
           const SizedBox(height: 12),
 
-          // ======================================================
-          // 咬食量第一順位
-          // ======================================================
           TextField(
             controller: beforeWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
