@@ -3,28 +3,18 @@
 // 版本：v1.1.2
 //
 // 本次版本修改內容：
-// 1. 修正 A線、B線添加量計算
-// 2. 添加量一律以「濃度小數第1位」為計算基準
-// 3. 每低於中值0.1，依照該藥水設定的添加量增加
-// 4. 避免 Dart double 浮點誤差造成添加量亂跳
-// 5. A線、B線中值分開設定
-// 6. 化驗畫面固定顯示：滴定值｜中值｜濃度｜需添加量
-// 7. 銅離子無中值，不計算添加量
-// 8. CBBA-A直接輸入濃度
-// 9. 酸洗槽硫酸：滴定值 × 5 × 0.56
-// 10. 棕化槽硫酸：滴定值 × 0.56
-// 11. 雙氧水：滴定值 × 0.47
-// 12. HL-II：滴定值 × 0.52
-// 13. 銅離子：滴定值 × 3.177
-// 14. 所有濃度固定顯示小數點後1位
-// 15. 新增未棕化／已棕化重量及咬食量自動計算
-// 16. 化驗結果可以存檔
-// 17. 已存檔資料可以查看、修改、刪除
-// 18. 存檔使用瀏覽器 localStorage
-// 19. 已登入設備記住登入人員
-// 20. 首頁左上角新增 KLF 棕化 QR Code
-// 21. QR Code 點擊後可以放大
-// 22. QR Code 直接連接 KLF 棕化 GitHub Pages
+// 1. 只有管理者可以刪除化驗資料
+// 2. 一般化驗人員不可刪除化驗資料
+// 3. 化驗結果完整顯示濃度及需添加量
+// 4. 化驗結果完整顯示未棕化重量、已棕化重量、咬食量
+// 5. 存檔資料查看時完整顯示所有化驗結果
+// 6. 編輯存檔後重新計算濃度、添加量、咬食量
+// 7. A線、B線中值維持分開設定
+// 8. 所有濃度固定顯示小數點後1位
+// 9. 添加量以濃度小數第1位為計算基準
+// 10. 銅離子無中值，不計算添加量
+// 11. CBBA-A直接輸入濃度
+// 12. 保留瀏覽器 localStorage 存檔
 //
 // ============================================================
 
@@ -32,7 +22,6 @@ import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
   runApp(const KLFApp());
@@ -45,8 +34,6 @@ void main() {
 class KLFConfig {
   static const String appName = 'KLF-棕化';
   static const String version = 'v1.1.2';
-
-  static const String appUrl = 'https://raider9981-glitch.github.io/klf-brown/';
 
   static const String adminPassword = '0';
 
@@ -698,91 +685,6 @@ class _AdminPageState extends State<AdminPage> {
 }
 
 // ============================================================
-// QR Code 對話框
-// ============================================================
-
-void showKLFQrCode(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (context) {
-      return Dialog(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'KLF 棕化化驗分析',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '掃描 QR Code 開啟手機版',
-                style: TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 20),
-
-              GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return Dialog(
-                        child: InteractiveViewer(
-                          minScale: 0.8,
-                          maxScale: 5.0,
-                          child: Padding(
-                            padding: const EdgeInsets.all(30),
-                            child: QrImageView(
-                              data: KLFConfig.appUrl,
-                              version: QrVersions.auto,
-                              size: 500,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-                child: QrImageView(
-                  data: KLFConfig.appUrl,
-                  version: QrVersions.auto,
-                  size: 280,
-                ),
-              ),
-
-              const SizedBox(height: 15),
-
-              const Text(
-                '點擊 QR Code 可放大',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-
-              const SizedBox(height: 15),
-
-              SelectableText(
-                KLFConfig.appUrl,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-
-              const SizedBox(height: 15),
-
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('關閉'),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-// ============================================================
 // 首頁
 // ============================================================
 
@@ -795,13 +697,6 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          tooltip: 'KLF 棕化 QR Code',
-          icon: const Icon(Icons.qr_code_2),
-          onPressed: () {
-            showKLFQrCode(context);
-          },
-        ),
         title: const Text(
           'KLF-棕化',
           style: TextStyle(fontWeight: FontWeight.bold),
@@ -823,8 +718,7 @@ class HomePage extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 1000),
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: ListView(
               children: [
                 const Text(
                   '棕化水平生產線',
@@ -872,7 +766,7 @@ class HomePage extends StatelessWidget {
                       '化驗存檔',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: const Text('查看、修改、刪除歷史化驗資料'),
+                    subtitle: const Text('查看、修改歷史化驗資料'),
                     trailing: const Icon(Icons.arrow_forward),
                     onTap: () {
                       Navigator.push(
@@ -998,7 +892,7 @@ class ChemicalSetting {
 }
 
 // ============================================================
-// A線、B線中值
+// A線、B線設定
 // ============================================================
 
 Map<String, ChemicalSetting> getSettings(String line) {
@@ -1140,6 +1034,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return double.tryParse(value.trim());
   }
 
+  // ==========================================================
+  // 濃度
+  // ==========================================================
+
   double? concentration(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
 
@@ -1157,10 +1055,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
       return roundToTenth(number);
     }
 
-    final result = number * setting.factor;
-
-    return roundToTenth(result);
+    return roundToTenth(number * setting.factor);
   }
+
+  // ==========================================================
+  // 添加量
+  // ==========================================================
 
   double? addAmount(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
@@ -1199,19 +1099,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
       return 0;
     }
 
-    final result = steps * setting.addPerPoint;
-
-    return roundToTenth(result);
+    return roundToTenth(steps * setting.addPerPoint);
   }
 
   String displayAddAmount(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
 
-    if (setting == null) {
-      return '-';
-    }
-
-    if (setting.middle == null) {
+    if (setting == null || setting.middle == null) {
       return '-';
     }
 
@@ -1252,6 +1146,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return formatNumber(roundToTenth(setting.middle!));
   }
 
+  // ==========================================================
+  // 咬食量
+  // ==========================================================
+
   double? biteAmount() {
     final before = parse(beforeWeightController.text);
 
@@ -1264,6 +1162,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return (before - after) / 100 * 21910;
   }
 
+  // ==========================================================
+  // 存檔
+  // ==========================================================
+
   void saveRecord() {
     final settings = getSettings(widget.lineName);
 
@@ -1273,11 +1175,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       final key = entry.key;
 
       final value = controllers[key]!.text.trim();
-
-      if (value.isEmpty) {
-        chemicals[key] = {'input': '', 'concentration': '', 'addAmount': ''};
-        continue;
-      }
 
       final concentrationValue = concentration(key, value);
 
@@ -1323,6 +1220,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
+  // ==========================================================
+  // 輸入欄
+  // ==========================================================
+
   Widget inputField(String key) {
     final setting = getSettings(widget.lineName)[key]!;
 
@@ -1343,6 +1244,35 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
+
+  // ==========================================================
+  // 結果框
+  // ==========================================================
+
+  Widget _resultBox(String title, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // 化學品列
+  // ==========================================================
 
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
@@ -1427,26 +1357,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  Widget _resultBox(String title, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
+  // ==========================================================
+  // 槽位
+  // ==========================================================
 
   Widget tankCard({
     required String title,
@@ -1473,6 +1386,111 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
+
+  // ==========================================================
+  // 咬食量區塊
+  // ==========================================================
+
+  Widget biteCard() {
+    final bite = biteAmount();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '咬食量',
+              style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              '未棕化重量、已棕化重量由化驗人員輸入，系統自動計算。',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 15),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: beforeWeightController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    onChanged: (_) {
+                      setState(() {});
+                    },
+                    decoration: InputDecoration(
+                      labelText: '未棕化重量',
+                      suffixText: 'g',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: afterWeightController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    onChanged: (_) {
+                      setState(() {});
+                    },
+                    decoration: InputDecoration(
+                      labelText: '已棕化重量',
+                      suffixText: 'g',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEDE4DE),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '咬食量',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Text(
+                    bite == null ? '-' : formatNumber(bite),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '公式：(未棕化重量－已棕化重量) ÷ 100 × 21910',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // Build
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1552,105 +1570,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
               const SizedBox(height: 12),
 
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '咬食量',
-                        style: TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      const Text(
-                        '未棕化重量、已棕化重量由化驗人員輸入，系統自動計算。',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      const SizedBox(height: 15),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: beforeWeightController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              onChanged: (_) {
-                                setState(() {});
-                              },
-                              decoration: InputDecoration(
-                                labelText: '未棕化重量',
-                                suffixText: 'g',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: afterWeightController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              onChanged: (_) {
-                                setState(() {});
-                              },
-                              decoration: InputDecoration(
-                                labelText: '已棕化重量',
-                                suffixText: 'g',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF5F5F5),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                '咬食量',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            Text(
-                              biteAmount() == null
-                                  ? '-'
-                                  : formatNumber(biteAmount()!),
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        '公式：(未棕化重量－已棕化重量) ÷ 100 × 21910',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              biteCard(),
 
               const SizedBox(height: 15),
 
@@ -1756,13 +1676,99 @@ class _RecordsPageState extends State<RecordsPage> {
     }
   }
 
+  // ==========================================================
+  // 只有管理者可以刪除
+  // ==========================================================
+
+  void _requestAdminDelete(String id) {
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('管理者驗證'),
+          content: const Text('刪除化驗資料需要管理者權限。'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+
+                _showAdminPassword(id);
+              },
+              child: const Text('管理者驗證'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAdminPassword(String id) {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('管理者密碼'),
+          content: TextField(
+            controller: controller,
+            obscureText: true,
+            autofocus: true,
+            onSubmitted: (_) {
+              _verifyAdminDelete(controller.text, id);
+            },
+            decoration: const InputDecoration(
+              labelText: '輸入管理者密碼',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _verifyAdminDelete(controller.text, id);
+              },
+              child: const Text('確認'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _verifyAdminDelete(String password, String id) {
+    if (password == KLFConfig.adminPassword) {
+      Navigator.pop(context);
+
+      _deleteRecord(id);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('管理者密碼錯誤，無法刪除'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _deleteRecord(String id) {
     showDialog(
       context: context,
       builder: (_) {
         return AlertDialog(
           title: const Text('刪除存檔'),
-          content: const Text('確定要刪除這筆化驗資料嗎？'),
+          content: const Text('確定要永久刪除這筆化驗資料嗎？'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -1818,8 +1824,10 @@ class _RecordsPageState extends State<RecordsPage> {
 
                 final user = record['user'] ?? '';
 
+                final bite = record['biteAmount'] ?? '';
+
                 return Card(
-                  child: ListTile(
+                  child: ExpansionTile(
                     leading: CircleAvatar(
                       child: Text(line.toString().replaceAll('線', '')),
                     ),
@@ -1838,25 +1846,162 @@ class _RecordsPageState extends State<RecordsPage> {
                             _openRecord(record);
                           },
                         ),
+
+                        // ==================================================
+                        // 刪除按鈕
+                        // 只有通過管理者密碼才可以刪除
+                        // ==================================================
                         IconButton(
-                          tooltip: '刪除',
+                          tooltip: '管理者刪除',
                           icon: const Icon(
                             Icons.delete_outline,
                             color: Colors.red,
                           ),
                           onPressed: () {
-                            _deleteRecord(record['id'].toString());
+                            _requestAdminDelete(record['id'].toString());
                           },
                         ),
                       ],
                     ),
-                    onTap: () {
-                      _openRecord(record);
-                    },
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                        child: _recordSummary(record),
+                      ),
+                    ],
                   ),
                 );
               },
             ),
+    );
+  }
+
+  // ==========================================================
+  // 存檔結果完整顯示
+  // ==========================================================
+
+  Widget _recordSummary(Map<String, dynamic> record) {
+    final chemicals = Map<String, dynamic>.from(record['chemicals'] ?? {});
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(),
+        const SizedBox(height: 8),
+        const Text(
+          '化驗結果',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
+
+        ...chemicals.entries.map((entry) {
+          final key = entry.key;
+
+          final data = Map<String, dynamic>.from(entry.value ?? {});
+
+          final setting = getSettings(record['line'].toString())[key];
+
+          if (setting == null) {
+            return const SizedBox();
+          }
+
+          final input = data['input']?.toString() ?? '';
+
+          final concentration = data['concentration']?.toString() ?? '';
+
+          final addAmount = data['addAmount']?.toString() ?? '';
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      setting.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Expanded(
+                    child: _smallResult('輸入', input.isEmpty ? '-' : input),
+                  ),
+                  Expanded(
+                    child: _smallResult(
+                      '中值',
+                      setting.middle == null
+                          ? '無中值'
+                          : formatNumber(setting.middle!),
+                    ),
+                  ),
+                  Expanded(
+                    child: _smallResult(
+                      '濃度',
+                      concentration.isEmpty ? '-' : concentration,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: _smallResult(
+                      '需添加量',
+                      addAmount.isEmpty ? '-' : addAmount,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+
+        const SizedBox(height: 8),
+
+        Card(
+          color: const Color(0xFFEDE4DE),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '未棕化重量：${record['beforeWeight'] ?? '-'} g',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    '已棕化重量：${record['afterWeight'] ?? '-'} g',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    '咬食量：${record['biteAmount'] == null || record['biteAmount'].toString().isEmpty ? '-' : record['biteAmount']}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _smallResult(String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1939,15 +2084,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
   double? addAmount(String key, String value) {
     final setting = getSettings(lineName)[key];
 
-    if (setting == null) {
-      return null;
-    }
-
-    if (setting.middle == null) {
-      return null;
-    }
-
-    if (setting.addPerPoint <= 0) {
+    if (setting == null || setting.middle == null || setting.addPerPoint <= 0) {
       return null;
     }
 
@@ -1979,6 +2116,22 @@ class _RecordEditPageState extends State<RecordEditPage> {
   String formatNumber(double value) {
     return value.toStringAsFixed(1);
   }
+
+  double? biteAmount() {
+    final before = parse(beforeWeightController.text);
+
+    final after = parse(afterWeightController.text);
+
+    if (before == null || after == null) {
+      return null;
+    }
+
+    return (before - after) / 100 * 21910;
+  }
+
+  // ==========================================================
+  // 儲存修改
+  // ==========================================================
 
   void save() {
     final settings = getSettings(lineName);
@@ -2046,6 +2199,10 @@ class _RecordEditPageState extends State<RecordEditPage> {
     Navigator.pop(context);
   }
 
+  // ==========================================================
+  // 編輯輸入
+  // ==========================================================
+
   Widget input(String key) {
     final setting = getSettings(lineName)[key]!;
 
@@ -2064,6 +2221,78 @@ class _RecordEditPageState extends State<RecordEditPage> {
     );
   }
 
+  // ==========================================================
+  // 編輯結果預覽
+  // ==========================================================
+
+  Widget resultPreview(String key) {
+    final setting = getSettings(lineName)[key]!;
+
+    final value = controllers[key]!.text;
+
+    final concentrationValue = concentration(key, value);
+
+    final add = addAmount(key, value);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: Text(
+                setting.name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            Expanded(
+              child: _editResult(
+                '中值',
+                setting.middle == null ? '無中值' : formatNumber(setting.middle!),
+              ),
+            ),
+            Expanded(
+              child: _editResult(
+                '濃度',
+                concentrationValue == null
+                    ? '-'
+                    : formatNumber(concentrationValue),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: _editResult(
+                '需添加量',
+                add == null
+                    ? '-'
+                    : add <= 0
+                    ? '不用添加'
+                    : '${formatNumber(add)} ${setting.unit}',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _editResult(String title, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+        const SizedBox(height: 3),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  // ==========================================================
+  // Build
+  // ==========================================================
+
   @override
   Widget build(BuildContext context) {
     final settings = getSettings(lineName);
@@ -2078,7 +2307,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
             child: const Padding(
               padding: EdgeInsets.all(14),
               child: Text(
-                '修改後會重新計算濃度及需添加量',
+                '修改後會重新計算濃度、需添加量及咬食量',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -2086,13 +2315,18 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
           const SizedBox(height: 12),
 
-          ...settings.keys.map((key) => input(key)),
+          ...settings.keys.map(
+            (key) => Column(children: [input(key), resultPreview(key)]),
+          ),
 
           const SizedBox(height: 10),
 
           TextField(
             controller: beforeWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) {
+              setState(() {});
+            },
             decoration: const InputDecoration(
               labelText: '未棕化重量',
               suffixText: 'g',
@@ -2105,10 +2339,42 @@ class _RecordEditPageState extends State<RecordEditPage> {
           TextField(
             controller: afterWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) {
+              setState(() {});
+            },
             decoration: const InputDecoration(
               labelText: '已棕化重量',
               suffixText: 'g',
               border: OutlineInputBorder(),
+            ),
+          ),
+
+          const SizedBox(height: 15),
+
+          Card(
+            color: const Color(0xFFEDE4DE),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '咬食量',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    biteAmount() == null ? '-' : formatNumber(biteAmount()!),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -2137,6 +2403,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
+
     afterWeightController.dispose();
 
     super.dispose();
