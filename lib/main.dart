@@ -1,19 +1,16 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.7
+// 版本：v1.1.8
 //
 // 本次版本修改內容：
-// 1. 授權人員改為 Firebase Firestore 雲端同步
-// 2. 管理者新增授權人員後，所有手機／電腦皆可使用
-// 3. 管理者刪除授權人員後，所有裝置同步失效
-// 4. 登入時直接查詢 Firebase 授權名單
-// 5. 保留原本管理者密碼
-// 6. 保留原本管理者入口
-// 7. 保留原本 QR Code 功能
-// 8. 保留原本化驗計算公式
-// 9. 保留原本化驗存檔功能
-// 10. 化驗資料仍維持目前裝置本機存檔
-// 11. 不自動授權
+// 1. 刪除化驗頁面的「顯示方式：全部」
+// 2. 縮小化驗頁面各項目上下間距
+// 3. 縮小化驗輸入框高度
+// 4. 縮小化驗結果欄位高度
+// 5. 縮小四個槽之間的間距
+// 6. 保留原本化驗計算公式
+// 7. 保留原本化驗存檔功能
+// 8. 其他登入、Firebase、管理者、QR Code 功能不變
 //
 // ============================================================
 
@@ -29,9 +26,7 @@ import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   runApp(const KLFApp());
 }
 
@@ -44,7 +39,6 @@ class FirebaseUserManager {
 
   static const String collectionName = 'authorized_users';
 
-  // 取得所有授權人員
   static Future<List<String>> getUsers() async {
     final snapshot = await _firestore
         .collection(collectionName)
@@ -57,7 +51,6 @@ class FirebaseUserManager {
         .toList();
   }
 
-  // 檢查某個名稱是否已授權
   static Future<bool> isAuthorized(String name) async {
     final cleanName = name.trim();
 
@@ -74,7 +67,6 @@ class FirebaseUserManager {
     return snapshot.docs.isNotEmpty;
   }
 
-  // 新增授權人員
   static Future<bool> addUser(String name) async {
     final cleanName = name.trim();
 
@@ -96,7 +88,6 @@ class FirebaseUserManager {
     return true;
   }
 
-  // 刪除授權人員
   static Future<void> deleteUser(String name) async {
     final snapshot = await _firestore
         .collection(collectionName)
@@ -115,7 +106,7 @@ class FirebaseUserManager {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.7';
+  static const String version = 'v1.1.8';
 
   static const String adminPassword = '0';
 
@@ -123,7 +114,6 @@ class KLFConfig {
       'https://raider9981-glitch.github.io/klf-brown/';
 
   static const String storageDeviceUser = 'klf_device_user';
-
   static const String storageAnalysisRecords = 'klf_analysis_records';
 }
 
@@ -640,7 +630,10 @@ class _AdminPageState extends State<AdminPage> {
       builder: (_) {
         return AlertDialog(
           title: const Text('刪除授權人員'),
-          content: Text('確定要刪除「$name」嗎？\n\n刪除後所有裝置都將無法再使用此名稱登入。'),
+          content: Text(
+            '確定要刪除「$name」嗎？\n\n'
+            '刪除後所有裝置都將無法再使用此名稱登入。',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -678,7 +671,6 @@ class _AdminPageState extends State<AdminPage> {
 
   void _clearCurrentDevice() {
     LocalStorageHelper.clearDeviceUser();
-
     _showMessage('本設備登入記錄已清除');
   }
 
@@ -1323,7 +1315,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final middle = roundToTenth(setting.middle!);
-
     final actual = roundToTenth(current);
 
     if (actual >= middle) {
@@ -1404,7 +1395,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     for (final entry in settings.entries) {
       final key = entry.key;
-
       final value = controllers[key]!.text.trim();
 
       final concentrationValue = concentration(key, value);
@@ -1451,26 +1441,42 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
+  // ------------------------------------------------------------
+  // v1.1.8：縮小輸入框高度
+  // ------------------------------------------------------------
+
   Widget inputField(String key) {
     final setting = getSettings(widget.lineName)[key]!;
 
     final controller = controllers[key]!;
 
-    return TextField(
-      controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      onChanged: (_) {
-        setState(() {});
-      },
-      decoration: InputDecoration(
-        labelText: setting.direct
-            ? '${setting.name}｜濃度'
-            : '${setting.name}｜滴定值',
-        hintText: setting.direct ? '直接輸入濃度' : '輸入滴定值',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+    return SizedBox(
+      height: 48,
+      child: TextField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onChanged: (_) {
+          setState(() {});
+        },
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
+          ),
+          labelText: setting.direct
+              ? '${setting.name}｜濃度'
+              : '${setting.name}｜滴定值',
+          hintText: setting.direct ? '直接輸入濃度' : '輸入滴定值',
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
       ),
     );
   }
+
+  // ------------------------------------------------------------
+  // v1.1.8：縮小結果欄位高度
+  // ------------------------------------------------------------
 
   Widget _resultBox(String title, String value) {
     Color? valueColor;
@@ -1484,20 +1490,23 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(7),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          const SizedBox(height: 3),
+          Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          const SizedBox(height: 1),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 15,
+              fontSize: 13,
               fontWeight: FontWeight.bold,
               color: valueColor,
             ),
@@ -1507,21 +1516,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
+  // ------------------------------------------------------------
+  // v1.1.8：化驗列整體縮短
+  // ------------------------------------------------------------
+
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
 
     final controller = controllers[key]!;
-
     final value = controller.text;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 6),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(8),
         child: LayoutBuilder(
           builder: (context, constraints) {
             if (constraints.maxWidth < 700) {
               return Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
@@ -1531,25 +1544,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           setting.name,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: 14,
                           ),
                         ),
                       ),
                       Expanded(flex: 3, child: inputField(key)),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 5),
                   Row(
                     children: [
                       Expanded(child: _resultBox('中值', displayMiddle(key))),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
                       Expanded(
                         child: _resultBox(
                           '濃度',
                           displayConcentration(key, value),
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
                       Expanded(
                         child: _resultBox('需添加量', displayAddAmount(key, value)),
                       ),
@@ -1567,18 +1580,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     setting.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 14,
                     ),
                   ),
                 ),
                 Expanded(flex: 3, child: inputField(key)),
-                const SizedBox(width: 8),
+                const SizedBox(width: 5),
                 Expanded(child: _resultBox('中值', displayMiddle(key))),
-                const SizedBox(width: 8),
+                const SizedBox(width: 5),
                 Expanded(
                   child: _resultBox('濃度', displayConcentration(key, value)),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 5),
                 Expanded(
                   child: _resultBox('需添加量', displayAddAmount(key, value)),
                 ),
@@ -1590,6 +1603,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
+  // ------------------------------------------------------------
+  // v1.1.8：槽卡片縮短
+  // ------------------------------------------------------------
+
   Widget tankCard({
     required String title,
     required String description,
@@ -1598,17 +1615,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(11),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               title,
-              style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 1),
             Text(description, style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 15),
+            const SizedBox(height: 7),
             ...keys.map((key) => chemicalRow(key)),
           ],
         ),
@@ -1616,73 +1633,93 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
+  // ------------------------------------------------------------
+  // v1.1.8：咬食量區塊縮短
+  // ------------------------------------------------------------
+
   Widget biteCard() {
     final bite = biteAmount();
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(11),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               '咬食量',
-              style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 2),
             const Text(
               '未棕化重量、已棕化重量由化驗人員輸入，系統自動計算。',
               style: TextStyle(color: Colors.grey),
             ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: beforeWeightController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (_) {
-                      setState(() {});
-                    },
-                    decoration: InputDecoration(
-                      labelText: '未棕化重量',
-                      suffixText: 'g',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    height: 48,
+                    child: TextField(
+                      controller: beforeWeightController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) {
+                        setState(() {});
+                      },
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        labelText: '未棕化重量',
+                        suffixText: 'g',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: TextField(
-                    controller: afterWeightController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (_) {
-                      setState(() {});
-                    },
-                    decoration: InputDecoration(
-                      labelText: '已棕化重量',
-                      suffixText: 'g',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    height: 48,
+                    child: TextField(
+                      controller: afterWeightController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) {
+                        setState(() {});
+                      },
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        labelText: '已棕化重量',
+                        suffixText: 'g',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 8),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               decoration: BoxDecoration(
                 color: const Color(0xFFEDE4DE),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
@@ -1695,17 +1732,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   Text(
                     bite == null ? '-' : formatNumber(bite),
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: 19,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             const Text(
               '公式：(未棕化重量－已棕化重量) ÷ 100 × 21910',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(color: Colors.grey, fontSize: 11),
             ),
           ],
         ),
@@ -1721,15 +1758,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(10),
             children: [
+              // ------------------------------------------------
+              // 化驗人員
+              // ------------------------------------------------
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.person_outline),
-                      const SizedBox(width: 10),
+                      const Icon(Icons.person_outline, size: 20),
+                      const SizedBox(width: 7),
                       Text(
                         '化驗人員：${widget.userName}',
                         style: const TextStyle(fontWeight: FontWeight.bold),
@@ -1738,44 +1781,40 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Card(
-                color: const Color(0xFFEDE4DE),
-                child: const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '顯示方式：咬食量 → 滴定值 → 中值 → 濃度 → 需添加量',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
+
+              // ------------------------------------------------
+              // 已刪除「顯示方式：全部」
+              // ------------------------------------------------
+              const SizedBox(height: 7),
+
               biteCard(),
-              const SizedBox(height: 12),
+
+              const SizedBox(height: 7),
+
               tankCard(
                 title: '第一槽｜酸洗槽',
                 description: '硫酸、雙氧水',
                 keys: const ['acid_sulfuric', 'acid_h2o2'],
               ),
-              const SizedBox(height: 12),
+
+              const SizedBox(height: 7),
+
               tankCard(
                 title: '第二槽｜清潔槽',
                 description: 'HL-II',
                 keys: const ['clean_hl2'],
               ),
-              const SizedBox(height: 12),
+
+              const SizedBox(height: 7),
+
               tankCard(
                 title: '第三槽｜預浸槽',
                 description: '雙氧水、CBBA-A',
                 keys: const ['pre_h2o2', 'pre_cbba'],
               ),
-              const SizedBox(height: 12),
+
+              const SizedBox(height: 7),
+
               tankCard(
                 title: '第四槽｜棕化槽',
                 description: '硫酸、雙氧水、CBBA-A、銅離子',
@@ -1786,21 +1825,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   'brown_copper',
                 ],
               ),
-              const SizedBox(height: 15),
+
+              const SizedBox(height: 10),
+
               SizedBox(
-                height: 58,
+                height: 52,
                 child: ElevatedButton.icon(
                   onPressed: saveRecord,
                   icon: const Icon(Icons.save_outlined),
                   label: const Text(
                     '化驗完成並存檔',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+
+              const SizedBox(height: 7),
+
               SizedBox(
-                height: 52,
+                height: 46,
                 child: OutlinedButton.icon(
                   onPressed: () {
                     Navigator.push(
@@ -1814,11 +1857,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   label: const Text('查看化驗存檔'),
                 ),
               ),
-              const SizedBox(height: 25),
+
+              const SizedBox(height: 15),
+
               Center(
                 child: Text(
                   '${KLFConfig.appName} ${KLFConfig.version}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  style: const TextStyle(color: Colors.grey, fontSize: 11),
                 ),
               ),
             ],
@@ -1835,7 +1880,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     beforeWeightController.dispose();
-
     afterWeightController.dispose();
 
     super.dispose();
@@ -2215,7 +2259,6 @@ class _RecordsPageState extends State<RecordsPage> {
 
 class RecordEditPage extends StatefulWidget {
   final Map<String, dynamic> record;
-
   final String userName;
 
   const RecordEditPage({
@@ -2598,7 +2641,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
-
     afterWeightController.dispose();
 
     super.dispose();
