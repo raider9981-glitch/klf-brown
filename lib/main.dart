@@ -1,6 +1,6 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.1
+// 版本：v1.1.2
 //
 // 本次版本修改內容：
 // 1. 修正 A線、B線添加量計算
@@ -22,6 +22,9 @@
 // 17. 已存檔資料可以查看、修改、刪除
 // 18. 存檔使用瀏覽器 localStorage
 // 19. 已登入設備記住登入人員
+// 20. 首頁左上角新增 KLF 棕化 QR Code
+// 21. QR Code 點擊後可以放大
+// 22. QR Code 直接連接 KLF 棕化 GitHub Pages
 //
 // ============================================================
 
@@ -29,6 +32,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
   runApp(const KLFApp());
@@ -40,7 +44,9 @@ void main() {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.1';
+  static const String version = 'v1.1.2';
+
+  static const String appUrl = 'https://raider9981-glitch.github.io/klf-brown/';
 
   static const String adminPassword = '0';
 
@@ -692,6 +698,91 @@ class _AdminPageState extends State<AdminPage> {
 }
 
 // ============================================================
+// QR Code 對話框
+// ============================================================
+
+void showKLFQrCode(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (context) {
+      return Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'KLF 棕化化驗分析',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '掃描 QR Code 開啟手機版',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 20),
+
+              GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) {
+                      return Dialog(
+                        child: InteractiveViewer(
+                          minScale: 0.8,
+                          maxScale: 5.0,
+                          child: Padding(
+                            padding: const EdgeInsets.all(30),
+                            child: QrImageView(
+                              data: KLFConfig.appUrl,
+                              version: QrVersions.auto,
+                              size: 500,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+                child: QrImageView(
+                  data: KLFConfig.appUrl,
+                  version: QrVersions.auto,
+                  size: 280,
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              const Text(
+                '點擊 QR Code 可放大',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+
+              const SizedBox(height: 15),
+
+              SelectableText(
+                KLFConfig.appUrl,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+
+              const SizedBox(height: 15),
+
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: const Text('關閉'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+// ============================================================
 // 首頁
 // ============================================================
 
@@ -704,6 +795,13 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'KLF 棕化 QR Code',
+          icon: const Icon(Icons.qr_code_2),
+          onPressed: () {
+            showKLFQrCode(context);
+          },
+        ),
         title: const Text(
           'KLF-棕化',
           style: TextStyle(fontWeight: FontWeight.bold),
@@ -883,20 +981,10 @@ class HomePage extends StatelessWidget {
 
 class ChemicalSetting {
   final String name;
-
-  // 中值可以是 null
-  // 銅離子就是 null，代表「無中值」
   final double? middle;
-
-  // 滴定值轉濃度的倍率
   final double factor;
-
-  // true = 直接輸入濃度
   final bool direct;
-
-  // 每少 0.1 時需要添加多少
   final double addPerPoint;
-
   final String unit;
 
   const ChemicalSetting({
@@ -911,54 +999,18 @@ class ChemicalSetting {
 
 // ============================================================
 // A線、B線中值
-//
-// A線：
-// 1 酸洗硫酸       10.0
-// 2 酸洗雙氧水      0.5
-// 3 清潔HL-II       7.0
-// 4 預浸雙氧水      2.0
-// 5 預浸CBBA-A      1.5
-// 6 棕化硫酸        5.6
-// 7 棕化雙氧水      3.4
-// 8 棕化CBBA-A      4.8
-// 9 銅離子          無中值
-//
-// B線：
-// 1 酸洗硫酸       10.0
-// 2 酸洗雙氧水      0.5
-// 3 清潔HL-II       3.7
-// 4 預浸雙氧水      1.5
-// 5 預浸CBBA-A      2.5
-// 6 棕化硫酸        5.4
-// 7 棕化雙氧水      3.5
-// 8 棕化CBBA-A      5.5
-// 9 銅離子          無中值
-//
 // ============================================================
 
 Map<String, ChemicalSetting> getSettings(String line) {
   final bool isA = line == 'A線';
 
   return {
-    // --------------------------------------------------------
-    // 酸洗槽
-    // --------------------------------------------------------
     'acid_sulfuric': ChemicalSetting(
       name: '硫酸',
-
-      // 酸洗槽硫酸中值
       middle: 10.0,
-
-      // 滴定值 × 5 × 0.56
-      // = 滴定值 × 2.8
       factor: 2.8,
-
       direct: false,
-
-      // A線：每低0.1加1L
-      // B線：每低0.1加0.5L
       addPerPoint: isA ? 1.0 : 0.5,
-
       unit: 'L',
     ),
 
@@ -967,76 +1019,43 @@ Map<String, ChemicalSetting> getSettings(String line) {
       middle: 0.5,
       factor: 0.47,
       direct: false,
-
-      // A、B都一樣
       addPerPoint: 0.5,
-
       unit: 'L',
     ),
 
-    // --------------------------------------------------------
-    // 清潔槽
-    // --------------------------------------------------------
     'clean_hl2': ChemicalSetting(
       name: 'HL-II',
       middle: isA ? 7.0 : 3.7,
       factor: 0.52,
       direct: false,
-
-      // A：每低0.1加1L
-      // B：每低0.1加0.5L
       addPerPoint: isA ? 1.0 : 0.5,
-
       unit: 'L',
     ),
 
-    // --------------------------------------------------------
-    // 預浸槽
-    // --------------------------------------------------------
     'pre_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: isA ? 2.0 : 1.5,
       factor: 0.47,
       direct: false,
-
-      // A：每低0.1加1L
-      // B：每低0.1加0.5L
       addPerPoint: isA ? 1.0 : 0.5,
-
       unit: 'L',
     ),
 
     'pre_cbba': ChemicalSetting(
       name: 'CBBA-A',
       middle: isA ? 1.5 : 2.5,
-
-      // CBBA直接輸入濃度
       factor: 1.0,
       direct: true,
-
-      // A：每低0.1加1.5L
-      // B：每低0.1加0.5L
       addPerPoint: isA ? 1.5 : 0.5,
-
       unit: 'L',
     ),
 
-    // --------------------------------------------------------
-    // 棕化槽
-    // --------------------------------------------------------
     'brown_sulfuric': ChemicalSetting(
       name: '硫酸',
       middle: isA ? 5.6 : 5.4,
-
-      // 棕化槽硫酸：
-      // 滴定值 × 0.56
       factor: 0.56,
-
       direct: false,
-
-      // A、B：每低0.1加3L
       addPerPoint: 3.0,
-
       unit: 'L',
     ),
 
@@ -1045,49 +1064,25 @@ Map<String, ChemicalSetting> getSettings(String line) {
       middle: isA ? 3.4 : 3.5,
       factor: 0.47,
       direct: false,
-
-      // A、B：每低0.1加1.5L
       addPerPoint: 1.5,
-
       unit: 'L',
     ),
 
     'brown_cbba': ChemicalSetting(
       name: 'CBBA-A',
       middle: isA ? 4.8 : 5.5,
-
-      // CBBA直接輸入濃度
       factor: 1.0,
       direct: true,
-
-      // 你設定：
-      // A棕化CBBA少0.1
-      // CBBA-A + CBBA-B 各加1.5L
-      //
-      // 這裡「需添加量」顯示的是：
-      // CBBA-A 1.5L
-      // CBBA-B 1.5L
-      //
       addPerPoint: 1.5,
-
       unit: 'L',
     ),
 
-    // --------------------------------------------------------
-    // 銅離子
-    // --------------------------------------------------------
     'brown_copper': const ChemicalSetting(
       name: '銅離子',
-
-      // 無中值
       middle: null,
-
       factor: 3.177,
       direct: false,
-
-      // 不計算添加量
       addPerPoint: 0,
-
       unit: '',
     ),
   };
@@ -1145,10 +1140,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return double.tryParse(value.trim());
   }
 
-  // ==========================================================
-  // 濃度計算
-  // ==========================================================
-
   double? concentration(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
 
@@ -1162,43 +1153,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
       return null;
     }
 
-    // CBBA直接輸入濃度
     if (setting.direct) {
       return roundToTenth(number);
     }
 
-    // 一般滴定值轉濃度
     final result = number * setting.factor;
 
-    // 重要：
-    // 所有濃度統一先四捨五入到小數第1位
-    // 後面的添加量也只使用這個結果計算
     return roundToTenth(result);
   }
-
-  // ==========================================================
-  // 添加量計算
-  //
-  // 規則：
-  //
-  // 先得到「已經四捨五入到0.1的實際濃度」
-  //
-  // 例如：
-  //
-  // 中值 10.0
-  // 實際濃度 9.9
-  // 少0.1
-  // → 計算 1次
-  //
-  // 實際濃度 9.8
-  // 少0.2
-  // → 計算 2次
-  //
-  // 實際濃度 9.7
-  // 少0.3
-  // → 計算 3次
-  //
-  // ==========================================================
 
   double? addAmount(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
@@ -1207,12 +1169,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
       return null;
     }
 
-    // 沒有中值的藥水不計算添加量
     if (setting.middle == null) {
       return null;
     }
 
-    // 沒有設定添加量
     if (setting.addPerPoint <= 0) {
       return null;
     }
@@ -1224,18 +1184,15 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final middle = roundToTenth(setting.middle!);
+
     final actual = roundToTenth(current);
 
-    // 大於等於中值
-    // 不需要添加
     if (actual >= middle) {
       return 0;
     }
 
-    // 差值也固定到0.1
     final deficit = roundToTenth(middle - actual);
 
-    // 每少0.1算一次
     final steps = (deficit * 10).round();
 
     if (steps <= 0) {
@@ -1246,10 +1203,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     return roundToTenth(result);
   }
-
-  // ==========================================================
-  // 添加量顯示
-  // ==========================================================
 
   String displayAddAmount(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
@@ -1275,10 +1228,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return '${formatNumber(amount)} ${setting.unit}';
   }
 
-  // ==========================================================
-  // 濃度顯示
-  // ==========================================================
-
   String displayConcentration(String key, String value) {
     final result = concentration(key, value);
 
@@ -1288,10 +1237,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     return formatNumber(result);
   }
-
-  // ==========================================================
-  // 中值顯示
-  // ==========================================================
 
   String displayMiddle(String key) {
     final setting = getSettings(widget.lineName)[key];
@@ -1307,10 +1252,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return formatNumber(roundToTenth(setting.middle!));
   }
 
-  // ==========================================================
-  // 咬食量
-  // ==========================================================
-
   double? biteAmount() {
     final before = parse(beforeWeightController.text);
 
@@ -1322,10 +1263,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     return (before - after) / 100 * 21910;
   }
-
-  // ==========================================================
-  // 儲存
-  // ==========================================================
 
   void saveRecord() {
     final settings = getSettings(widget.lineName);
@@ -1348,11 +1285,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
       chemicals[key] = {
         'input': value,
-
         'concentration': concentrationValue == null
             ? ''
             : formatNumber(concentrationValue),
-
         'addAmount': add == null
             ? ''
             : add <= 0
@@ -1365,19 +1300,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final record = <String, dynamic>{
       'id': DateTime.now().millisecondsSinceEpoch.toString(),
-
       'line': widget.lineName,
-
       'user': widget.userName,
-
       'time': DateTime.now().toIso8601String(),
-
       'beforeWeight': beforeWeightController.text.trim(),
-
       'afterWeight': afterWeightController.text.trim(),
-
       'biteAmount': bite == null ? '' : formatNumber(bite),
-
       'chemicals': chemicals,
     };
 
@@ -1394,10 +1322,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-
-  // ==========================================================
-  // 輸入欄
-  // ==========================================================
 
   Widget inputField(String key) {
     final setting = getSettings(widget.lineName)[key]!;
@@ -1419,10 +1343,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-
-  // ==========================================================
-  // 化學品列
-  // ==========================================================
 
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
@@ -1528,10 +1448,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  // ==========================================================
-  // 槽位
-  // ==========================================================
-
   Widget tankCard({
     required String title,
     required String description,
@@ -1557,10 +1473,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-
-  // ==========================================================
-  // Build
-  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1603,9 +1515,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
               const SizedBox(height: 12),
 
-              // ==================================================
-              // 酸洗槽
-              // ==================================================
               tankCard(
                 title: '第一槽｜酸洗槽',
                 description: '硫酸、雙氧水',
@@ -1614,9 +1523,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
               const SizedBox(height: 12),
 
-              // ==================================================
-              // 清潔槽
-              // ==================================================
               tankCard(
                 title: '第二槽｜清潔槽',
                 description: 'HL-II',
@@ -1625,9 +1531,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
               const SizedBox(height: 12),
 
-              // ==================================================
-              // 預浸槽
-              // ==================================================
               tankCard(
                 title: '第三槽｜預浸槽',
                 description: '雙氧水、CBBA-A',
@@ -1636,9 +1539,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
               const SizedBox(height: 12),
 
-              // ==================================================
-              // 棕化槽
-              // ==================================================
               tankCard(
                 title: '第四槽｜棕化槽',
                 description: '硫酸、雙氧水、CBBA-A、銅離子',
@@ -1652,9 +1552,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
               const SizedBox(height: 12),
 
-              // ==================================================
-              // 咬食量
-              // ==================================================
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(18),
@@ -1757,9 +1654,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
               const SizedBox(height: 15),
 
-              // ==================================================
-              // 儲存
-              // ==================================================
               SizedBox(
                 height: 58,
                 child: ElevatedButton.icon(
@@ -2022,10 +1916,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     return double.tryParse(value.trim());
   }
 
-  // ==========================================================
-  // 編輯頁濃度
-  // ==========================================================
-
   double? concentration(String key, String value) {
     final setting = getSettings(lineName)[key];
 
@@ -2045,10 +1935,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
     return roundToTenth(number * setting.factor);
   }
-
-  // ==========================================================
-  // 編輯頁添加量
-  // ==========================================================
 
   double? addAmount(String key, String value) {
     final setting = getSettings(lineName)[key];
@@ -2094,10 +1980,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     return value.toStringAsFixed(1);
   }
 
-  // ==========================================================
-  // 儲存修改
-  // ==========================================================
-
   void save() {
     final settings = getSettings(lineName);
 
@@ -2114,11 +1996,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
       chemicals[key] = {
         'input': input,
-
         'concentration': concentrationValue == null
             ? ''
             : formatNumber(concentrationValue),
-
         'addAmount': add == null
             ? ''
             : add <= 0
@@ -2166,10 +2046,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     Navigator.pop(context);
   }
 
-  // ==========================================================
-  // 編輯輸入
-  // ==========================================================
-
   Widget input(String key) {
     final setting = getSettings(lineName)[key]!;
 
@@ -2187,10 +2063,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
       ),
     );
   }
-
-  // ==========================================================
-  // Build
-  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
