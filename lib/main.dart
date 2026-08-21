@@ -1,20 +1,25 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.8
+// 版本：v1.2.0
 //
 // 本次版本修改內容：
-// 1. 刪除化驗頁面的「顯示方式：全部」
-// 2. 縮小化驗頁面各項目上下間距
-// 3. 縮小化驗輸入框高度
-// 4. 縮小化驗結果欄位高度
-// 5. 縮小四個槽之間的間距
-// 6. 保留原本化驗計算公式
-// 7. 保留原本化驗存檔功能
-// 8. 其他登入、Firebase、管理者、QR Code 功能不變
+// 1. 化驗結果改為 Firebase Cloud Firestore 雲端儲存
+// 2. 所有已授權手機共享同一份化驗結果
+// 3. 新增化驗資料後，其他手機可讀取
+// 4. 修改化驗資料後，其他手機可同步看到
+// 5. 管理者刪除化驗資料時，同步刪除雲端資料
+// 6. 化驗存檔不再以 LocalStorage 作為主要資料來源
+// 7. 化驗存檔頁面使用 Firestore 即時監聽
+// 8. 保留原本化驗計算公式
+// 9. 保留原本咬食量計算公式
+// 10. 保留 A 線／B 線化驗設定
+// 11. 保留登入、Firebase 授權、管理者、QR Code
+// 12. 保留 v1.1.8 化驗頁面縮小優化
+// 13. 刪除化驗頁面的「顯示方式：全部」
+// 14. 縮小化驗輸入框、結果欄位、槽間距
 //
 // ============================================================
 
-import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -26,7 +31,9 @@ import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(const KLFApp());
 }
 
@@ -101,12 +108,124 @@ class FirebaseUserManager {
 }
 
 // ============================================================
+// v1.2.0 化驗資料 Firebase 管理
+// ============================================================
+
+class FirebaseAnalysisManager {
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static const String collectionName = 'analysis_records';
+
+  // ----------------------------------------------------------
+  // 新增化驗資料
+  // ----------------------------------------------------------
+
+  static Future<String> addRecord(Map<String, dynamic> record) async {
+    final doc = _firestore.collection(collectionName).doc();
+
+    final data = Map<String, dynamic>.from(record);
+
+    data.remove('id');
+    data.remove('time');
+
+    data['createdAt'] = FieldValue.serverTimestamp();
+    data['updatedAt'] = FieldValue.serverTimestamp();
+
+    await doc.set(data);
+
+    return doc.id;
+  }
+
+  // ----------------------------------------------------------
+  // 修改化驗資料
+  // ----------------------------------------------------------
+
+  static Future<void> updateRecord(
+    String id,
+    Map<String, dynamic> record,
+  ) async {
+    final data = Map<String, dynamic>.from(record);
+
+    data.remove('id');
+    data.remove('time');
+
+    data['updatedAt'] = FieldValue.serverTimestamp();
+
+    await _firestore.collection(collectionName).doc(id).update(data);
+  }
+
+  // ----------------------------------------------------------
+  // 管理者刪除
+  // ----------------------------------------------------------
+
+  static Future<void> deleteRecord(String id) async {
+    await _firestore.collection(collectionName).doc(id).delete();
+  }
+
+  // ----------------------------------------------------------
+  // 所有化驗資料
+  // 即時監聽
+  // ----------------------------------------------------------
+
+  static Stream<List<Map<String, dynamic>>> recordsStream() {
+    return _firestore
+        .collection(collectionName)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            final data = Map<String, dynamic>.from(doc.data());
+
+            data['id'] = doc.id;
+
+            final timestamp = data['createdAt'];
+
+            if (timestamp is Timestamp) {
+              data['time'] = timestamp.toDate().toIso8601String();
+            } else if (timestamp is DateTime) {
+              data['time'] = timestamp.toIso8601String();
+            } else {
+              data['time'] = '';
+            }
+
+            final updated = data['updatedAt'];
+
+            if (updated is Timestamp) {
+              data['editedTime'] = updated.toDate().toIso8601String();
+            }
+
+            return data;
+          }).toList();
+        });
+  }
+
+  // ----------------------------------------------------------
+  // 單筆資料
+  // ----------------------------------------------------------
+
+  static Future<Map<String, dynamic>?> getRecord(String id) async {
+    final doc = await _firestore.collection(collectionName).doc(id).get();
+
+    if (!doc.exists) {
+      return null;
+    }
+
+    final data = Map<String, dynamic>.from(doc.data()!);
+
+    data['id'] = doc.id;
+
+    return data;
+  }
+}
+
+// ============================================================
 // 系統設定
 // ============================================================
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.8';
+
+  static const String version = 'v1.2.0';
 
   static const String adminPassword = '0';
 
@@ -114,11 +233,10 @@ class KLFConfig {
       'https://raider9981-glitch.github.io/klf-brown/';
 
   static const String storageDeviceUser = 'klf_device_user';
-  static const String storageAnalysisRecords = 'klf_analysis_records';
 }
 
 // ============================================================
-// 本機 Storage
+// 本機登入 Storage
 // ============================================================
 
 class LocalStorageHelper {
@@ -142,31 +260,6 @@ class LocalStorageHelper {
 
   static void clearDeviceUser() {
     remove(KLFConfig.storageDeviceUser);
-  }
-
-  static List<Map<String, dynamic>> getRecords() {
-    final data = get(KLFConfig.storageAnalysisRecords);
-
-    if (data == null || data.isEmpty) {
-      return [];
-    }
-
-    try {
-      final decoded = jsonDecode(data);
-
-      if (decoded is List) {
-        return decoded
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
-      }
-    } catch (_) {}
-
-    return [];
-  }
-
-  static void saveRecords(List<Map<String, dynamic>> records) {
-    set(KLFConfig.storageAnalysisRecords, jsonEncode(records));
   }
 }
 
@@ -226,6 +319,7 @@ class _StartupPageState extends State<StartupPage> {
           context,
           MaterialPageRoute(builder: (_) => HomePage(userName: deviceUser)),
         );
+
         return;
       }
 
@@ -261,6 +355,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _nameController = TextEditingController();
 
   String _errorMessage = '';
+
   bool _loading = false;
 
   Future<void> _login() async {
@@ -270,6 +365,7 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         _errorMessage = '請輸入授權名稱';
       });
+
       return;
     }
 
@@ -295,7 +391,7 @@ class _LoginPageState extends State<LoginPage> {
           _errorMessage = '名稱未授權，無法登入';
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
 
       setState(() {
@@ -548,7 +644,9 @@ class _AdminPageState extends State<AdminPage> {
   final TextEditingController _nameController = TextEditingController();
 
   List<String> _users = [];
+
   bool _loading = true;
+
   bool _adding = false;
 
   @override
@@ -671,6 +769,7 @@ class _AdminPageState extends State<AdminPage> {
 
   void _clearCurrentDevice() {
     LocalStorageHelper.clearDeviceUser();
+
     _showMessage('本設備登入記錄已清除');
   }
 
@@ -852,9 +951,15 @@ class _AdminPageState extends State<AdminPage> {
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.cloud_done, color: Colors.green),
-                  title: const Text('授權資料來源'),
+                  title: const Text('化驗資料來源'),
                   subtitle: const Text('Firebase Cloud Firestore'),
-                  trailing: const Text('雲端同步'),
+                  trailing: const Text(
+                    '雲端共享',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -924,9 +1029,7 @@ class HomePage extends StatelessWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text('關閉'),
             ),
           ],
@@ -954,16 +1057,12 @@ class HomePage extends StatelessWidget {
           IconButton(
             tooltip: '管理者',
             icon: const Icon(Icons.admin_panel_settings_outlined),
-            onPressed: () {
-              openAdmin(context);
-            },
+            onPressed: () => openAdmin(context),
           ),
           IconButton(
             tooltip: '邀請開啟網站',
             icon: const Icon(Icons.qr_code_2),
-            onPressed: () {
-              showWebsiteQrCode(context);
-            },
+            onPressed: () => showWebsiteQrCode(context),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -1029,7 +1128,7 @@ class HomePage extends StatelessWidget {
                       '化驗存檔',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: const Text('查看、修改歷史化驗資料'),
+                    subtitle: const Text('查看所有手機共享的歷史化驗資料'),
                     trailing: const Icon(Icons.arrow_forward),
                     onTap: () {
                       Navigator.push(
@@ -1266,6 +1365,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   final TextEditingController afterWeightController = TextEditingController();
 
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
@@ -1315,6 +1416,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final middle = roundToTenth(setting.middle!);
+
     final actual = roundToTenth(current);
 
     if (actual >= middle) {
@@ -1388,62 +1490,94 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return (before - after) / 100 * 21910;
   }
 
-  void saveRecord() {
-    final settings = getSettings(widget.lineName);
+  // ----------------------------------------------------------
+  // v1.2.0 雲端存檔
+  // ----------------------------------------------------------
 
-    final chemicals = <String, dynamic>{};
-
-    for (final entry in settings.entries) {
-      final key = entry.key;
-      final value = controllers[key]!.text.trim();
-
-      final concentrationValue = concentration(key, value);
-
-      final add = addAmount(key, value);
-
-      chemicals[key] = {
-        'input': value,
-        'concentration': concentrationValue == null
-            ? ''
-            : formatNumber(concentrationValue),
-        'addAmount': add == null
-            ? ''
-            : add <= 0
-            ? '不用添加'
-            : '${formatNumber(add)} ${entry.value.unit}',
-      };
+  Future<void> saveRecord() async {
+    if (_saving) {
+      return;
     }
 
-    final bite = biteAmount();
+    setState(() {
+      _saving = true;
+    });
 
-    final record = <String, dynamic>{
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'line': widget.lineName,
-      'user': widget.userName,
-      'time': DateTime.now().toIso8601String(),
-      'beforeWeight': beforeWeightController.text.trim(),
-      'afterWeight': afterWeightController.text.trim(),
-      'biteAmount': bite == null ? '' : formatNumber(bite),
-      'chemicals': chemicals,
-    };
+    try {
+      final settings = getSettings(widget.lineName);
 
-    final records = LocalStorageHelper.getRecords();
+      final chemicals = <String, dynamic>{};
 
-    records.insert(0, record);
+      for (final entry in settings.entries) {
+        final key = entry.key;
 
-    LocalStorageHelper.saveRecords(records);
+        final value = controllers[key]!.text.trim();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('化驗資料已存檔'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+        final concentrationValue = concentration(key, value);
+
+        final add = addAmount(key, value);
+
+        chemicals[key] = {
+          'input': value,
+          'concentration': concentrationValue == null
+              ? ''
+              : formatNumber(concentrationValue),
+          'addAmount': add == null
+              ? ''
+              : add <= 0
+              ? '不用添加'
+              : '${formatNumber(add)} ${entry.value.unit}',
+        };
+      }
+
+      final bite = biteAmount();
+
+      final record = <String, dynamic>{
+        'line': widget.lineName,
+        'user': widget.userName,
+        'beforeWeight': beforeWeightController.text.trim(),
+        'afterWeight': afterWeightController.text.trim(),
+        'biteAmount': bite == null ? '' : formatNumber(bite),
+        'chemicals': chemicals,
+      };
+
+      await FirebaseAnalysisManager.addRecord(record);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('化驗資料已儲存至雲端，所有授權手機皆可查看'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      for (final controller in controllers.values) {
+        controller.clear();
+      }
+
+      beforeWeightController.clear();
+
+      afterWeightController.clear();
+
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('雲端存檔失敗，請確認 Firebase 連線與權限'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
+    }
   }
-
-  // ------------------------------------------------------------
-  // v1.1.8：縮小輸入框高度
-  // ------------------------------------------------------------
 
   Widget inputField(String key) {
     final setting = getSettings(widget.lineName)[key]!;
@@ -1473,10 +1607,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-
-  // ------------------------------------------------------------
-  // v1.1.8：縮小結果欄位高度
-  // ------------------------------------------------------------
 
   Widget _resultBox(String title, String value) {
     Color? valueColor;
@@ -1516,14 +1646,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  // ------------------------------------------------------------
-  // v1.1.8：化驗列整體縮短
-  // ------------------------------------------------------------
-
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
 
     final controller = controllers[key]!;
+
     final value = controller.text;
 
     return Card(
@@ -1603,10 +1730,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  // ------------------------------------------------------------
-  // v1.1.8：槽卡片縮短
-  // ------------------------------------------------------------
-
   Widget tankCard({
     required String title,
     required String description,
@@ -1632,10 +1755,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-
-  // ------------------------------------------------------------
-  // v1.1.8：咬食量區塊縮短
-  // ------------------------------------------------------------
 
   Widget biteCard() {
     final bite = biteAmount();
@@ -1753,16 +1872,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.lineName}｜藥水化驗'), actions: const []),
+      appBar: AppBar(title: Text('${widget.lineName}｜藥水化驗')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
           child: ListView(
             padding: const EdgeInsets.all(10),
             children: [
-              // ------------------------------------------------
-              // 化驗人員
-              // ------------------------------------------------
               Card(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -1781,40 +1897,27 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
               ),
-
-              // ------------------------------------------------
-              // 已刪除「顯示方式：全部」
-              // ------------------------------------------------
               const SizedBox(height: 7),
-
               biteCard(),
-
               const SizedBox(height: 7),
-
               tankCard(
                 title: '第一槽｜酸洗槽',
                 description: '硫酸、雙氧水',
                 keys: const ['acid_sulfuric', 'acid_h2o2'],
               ),
-
               const SizedBox(height: 7),
-
               tankCard(
                 title: '第二槽｜清潔槽',
                 description: 'HL-II',
                 keys: const ['clean_hl2'],
               ),
-
               const SizedBox(height: 7),
-
               tankCard(
                 title: '第三槽｜預浸槽',
                 description: '雙氧水、CBBA-A',
                 keys: const ['pre_h2o2', 'pre_cbba'],
               ),
-
               const SizedBox(height: 7),
-
               tankCard(
                 title: '第四槽｜棕化槽',
                 description: '硫酸、雙氧水、CBBA-A、銅離子',
@@ -1825,23 +1928,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   'brown_copper',
                 ],
               ),
-
               const SizedBox(height: 10),
-
               SizedBox(
                 height: 52,
                 child: ElevatedButton.icon(
-                  onPressed: saveRecord,
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text(
-                    '化驗完成並存檔',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  onPressed: _saving ? null : saveRecord,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.cloud_upload_outlined),
+                  label: Text(
+                    _saving ? '雲端儲存中...' : '化驗完成並存檔',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-
               const SizedBox(height: 7),
-
               SizedBox(
                 height: 46,
                 child: OutlinedButton.icon(
@@ -1854,12 +1962,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     );
                   },
                   icon: const Icon(Icons.folder_open),
-                  label: const Text('查看化驗存檔'),
+                  label: const Text('查看共享化驗存檔'),
                 ),
               ),
-
               const SizedBox(height: 15),
-
               Center(
                 child: Text(
                   '${KLFConfig.appName} ${KLFConfig.version}',
@@ -1880,6 +1986,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     beforeWeightController.dispose();
+
     afterWeightController.dispose();
 
     super.dispose();
@@ -1888,6 +1995,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
 // ============================================================
 // 化驗存檔
+// v1.2.0：Firebase 即時共享
 // ============================================================
 
 class RecordsPage extends StatefulWidget {
@@ -1900,20 +2008,6 @@ class RecordsPage extends StatefulWidget {
 }
 
 class _RecordsPageState extends State<RecordsPage> {
-  List<Map<String, dynamic>> records = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  void _load() {
-    setState(() {
-      records = LocalStorageHelper.getRecords();
-    });
-  }
-
   String formatDate(String value) {
     try {
       final date = DateTime.parse(value);
@@ -1939,14 +2033,13 @@ class _RecordsPageState extends State<RecordsPage> {
           content: const Text('刪除化驗資料需要管理者權限。'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text('取消'),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
+
                 _showAdminPassword(id);
               },
               child: const Text('管理者驗證'),
@@ -1993,7 +2086,9 @@ class _RecordsPageState extends State<RecordsPage> {
           ],
         );
       },
-    );
+    ).then((_) {
+      controller.dispose();
+    });
   }
 
   void _verifyAdminDelete(String password, String id) {
@@ -2010,34 +2105,50 @@ class _RecordsPageState extends State<RecordsPage> {
     }
   }
 
-  void _deleteRecord(String id) {
-    showDialog(
+  Future<void> _deleteRecord(String id) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text('刪除存檔'),
-          content: const Text('確定要永久刪除這筆化驗資料嗎？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                records.removeWhere((record) => record['id'] == id);
-
-                LocalStorageHelper.saveRecords(records);
-
-                Navigator.pop(context);
-
-                _load();
-              },
-              child: const Text('刪除'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => AlertDialog(
+        title: const Text('刪除雲端存檔'),
+        content: const Text('確定要永久刪除這筆化驗資料嗎？\n\n刪除後所有手機都會同步消失。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
     );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await FirebaseAnalysisManager.deleteRecord(id);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('已從雲端刪除，所有手機同步更新'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('刪除失敗，請確認 Firebase 權限'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _openRecord(Map<String, dynamic> record) {
@@ -2047,73 +2158,159 @@ class _RecordsPageState extends State<RecordsPage> {
         builder: (_) =>
             RecordEditPage(record: record, userName: widget.userName),
       ),
-    ).then((_) {
-      _load();
-    });
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('化驗存檔')),
-      body: records.isEmpty
-          ? const Center(
-              child: Text('目前沒有化驗存檔', style: TextStyle(color: Colors.grey)),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: records.length,
-              itemBuilder: (context, index) {
-                final record = records[index];
-
-                final line = record['line'] ?? '';
-
-                final time = record['time'] ?? '';
-
-                final user = record['user'] ?? '';
-
-                return Card(
-                  child: ExpansionTile(
-                    leading: CircleAvatar(
-                      child: Text(line.toString().replaceAll('線', '')),
+      appBar: AppBar(
+        title: const Text('化驗存檔'),
+        actions: [
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: FirebaseAnalysisManager.recordsStream(),
+            builder: (context, snapshot) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.cloud_done,
+                      size: 18,
+                      color: snapshot.hasError ? Colors.red : Colors.green,
                     ),
-                    title: Text(
-                      '$line｜${formatDate(time.toString())}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    const SizedBox(width: 5),
+                    Text(
+                      snapshot.hasError ? '離線' : '雲端同步',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: snapshot.hasError ? Colors.red : Colors.green,
+                      ),
                     ),
-                    subtitle: Text('化驗人員：$user'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: '查看／修改',
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () {
-                            _openRecord(record);
-                          },
-                        ),
-                        IconButton(
-                          tooltip: '管理者刪除',
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                          ),
-                          onPressed: () {
-                            _requestAdminDelete(record['id']);
-                          },
-                        ),
-                      ],
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: FirebaseAnalysisManager.recordsStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off, size: 60, color: Colors.red),
+                    const SizedBox(height: 15),
+                    const Text(
+                      '無法讀取雲端化驗資料',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '請確認網路與 Firebase Firestore 權限設定。',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 15),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('重新連線'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final records = snapshot.data ?? [];
+
+          if (records.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.folder_open, size: 60, color: Colors.grey),
+                  SizedBox(height: 12),
+                  Text('目前沒有化驗存檔', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: records.length,
+            itemBuilder: (context, index) {
+              final record = records[index];
+
+              final line = record['line'] ?? '';
+
+              final time = record['time'] ?? '';
+
+              final user = record['user'] ?? '';
+
+              final id = record['id']?.toString() ?? '';
+
+              return Card(
+                child: ExpansionTile(
+                  leading: CircleAvatar(
+                    child: Text(line.toString().replaceAll('線', '')),
+                  ),
+                  title: Text(
+                    '$line｜${formatDate(time.toString())}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text('化驗人員：$user'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-                        child: _recordSummary(record),
+                      IconButton(
+                        tooltip: '查看／修改',
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () {
+                          _openRecord(record);
+                        },
+                      ),
+                      IconButton(
+                        tooltip: '管理者刪除',
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                        ),
+                        onPressed: id.isEmpty
+                            ? null
+                            : () {
+                                _requestAdminDelete(id);
+                              },
                       ),
                     ],
                   ),
-                );
-              },
-            ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                      child: _recordSummary(record),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -2188,41 +2385,89 @@ class _RecordsPageState extends State<RecordsPage> {
             margin: const EdgeInsets.only(bottom: 8),
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      setting.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  Expanded(
-                    child: _smallResult('輸入', input.isEmpty ? '-' : input),
-                  ),
-                  Expanded(
-                    child: _smallResult(
-                      '中值',
-                      setting.middle == null
-                          ? '無中值'
-                          : formatNumber(setting.middle!),
-                    ),
-                  ),
-                  Expanded(
-                    child: _smallResult(
-                      '濃度',
-                      concentration.isEmpty ? '-' : concentration,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: _smallResult(
-                      '需添加量',
-                      addAmount.isEmpty ? '-' : addAmount,
-                      valueColor: addColor,
-                    ),
-                  ),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 650) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          setting.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _smallResult(
+                                '輸入',
+                                input.isEmpty ? '-' : input,
+                              ),
+                            ),
+                            Expanded(
+                              child: _smallResult(
+                                '中值',
+                                setting.middle == null
+                                    ? '無中值'
+                                    : formatNumber(setting.middle!),
+                              ),
+                            ),
+                            Expanded(
+                              child: _smallResult(
+                                '濃度',
+                                concentration.isEmpty ? '-' : concentration,
+                              ),
+                            ),
+                            Expanded(
+                              child: _smallResult(
+                                '需添加量',
+                                addAmount.isEmpty ? '-' : addAmount,
+                                valueColor: addColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          setting.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Expanded(
+                        child: _smallResult('輸入', input.isEmpty ? '-' : input),
+                      ),
+                      Expanded(
+                        child: _smallResult(
+                          '中值',
+                          setting.middle == null
+                              ? '無中值'
+                              : formatNumber(setting.middle!),
+                        ),
+                      ),
+                      Expanded(
+                        child: _smallResult(
+                          '濃度',
+                          concentration.isEmpty ? '-' : concentration,
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: _smallResult(
+                          '需添加量',
+                          addAmount.isEmpty ? '-' : addAmount,
+                          valueColor: addColor,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           );
@@ -2259,6 +2504,7 @@ class _RecordsPageState extends State<RecordsPage> {
 
 class RecordEditPage extends StatefulWidget {
   final Map<String, dynamic> record;
+
   final String userName;
 
   const RecordEditPage({
@@ -2279,6 +2525,8 @@ class _RecordEditPageState extends State<RecordEditPage> {
   final TextEditingController beforeWeightController = TextEditingController();
 
   final TextEditingController afterWeightController = TextEditingController();
+
+  bool _saving = false;
 
   @override
   void initState() {
@@ -2360,10 +2608,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     return roundToTenth(steps * setting.addPerPoint);
   }
 
-  String formatNumber(double value) {
-    return value.toStringAsFixed(1);
-  }
-
   double? biteAmount() {
     final before = parse(beforeWeightController.text);
 
@@ -2376,70 +2620,94 @@ class _RecordEditPageState extends State<RecordEditPage> {
     return (before - after) / 100 * 21910;
   }
 
-  void save() {
-    final settings = getSettings(lineName);
+  // ----------------------------------------------------------
+  // v1.2.0 雲端修改
+  // ----------------------------------------------------------
 
-    final chemicals = <String, dynamic>{};
-
-    for (final entry in settings.entries) {
-      final key = entry.key;
-
-      final input = controllers[key]!.text.trim();
-
-      final concentrationValue = concentration(key, input);
-
-      final add = addAmount(key, input);
-
-      chemicals[key] = {
-        'input': input,
-        'concentration': concentrationValue == null
-            ? ''
-            : formatNumber(concentrationValue),
-        'addAmount': add == null
-            ? ''
-            : add <= 0
-            ? '不用添加'
-            : '${formatNumber(add)} ${entry.value.unit}',
-      };
+  Future<void> save() async {
+    if (_saving) {
+      return;
     }
 
-    final before = parse(beforeWeightController.text);
+    setState(() {
+      _saving = true;
+    });
 
-    final after = parse(afterWeightController.text);
+    try {
+      final settings = getSettings(lineName);
 
-    final bite = before == null || after == null
-        ? null
-        : (before - after) / 100 * 21910;
+      final chemicals = <String, dynamic>{};
 
-    final updated = Map<String, dynamic>.from(widget.record);
+      for (final entry in settings.entries) {
+        final key = entry.key;
 
-    updated['chemicals'] = chemicals;
+        final input = controllers[key]!.text.trim();
 
-    updated['beforeWeight'] = beforeWeightController.text.trim();
+        final concentrationValue = concentration(key, input);
 
-    updated['afterWeight'] = afterWeightController.text.trim();
+        final add = addAmount(key, input);
 
-    updated['biteAmount'] = bite == null ? '' : formatNumber(bite);
+        chemicals[key] = {
+          'input': input,
+          'concentration': concentrationValue == null
+              ? ''
+              : formatNumber(concentrationValue),
+          'addAmount': add == null
+              ? ''
+              : add <= 0
+              ? '不用添加'
+              : '${formatNumber(add)} ${entry.value.unit}',
+        };
+      }
 
-    updated['editedTime'] = DateTime.now().toIso8601String();
+      final bite = biteAmount();
 
-    final records = LocalStorageHelper.getRecords();
+      final updated = Map<String, dynamic>.from(widget.record);
 
-    final index = records.indexWhere(
-      (record) => record['id'] == widget.record['id'],
-    );
+      updated['line'] = lineName;
 
-    if (index >= 0) {
-      records[index] = updated;
+      updated['chemicals'] = chemicals;
+
+      updated['beforeWeight'] = beforeWeightController.text.trim();
+
+      updated['afterWeight'] = afterWeightController.text.trim();
+
+      updated['biteAmount'] = bite == null ? '' : formatNumber(bite);
+
+      final id = widget.record['id']?.toString();
+
+      if (id == null || id.isEmpty) {
+        throw Exception('缺少 Firebase 文件 ID');
+      }
+
+      await FirebaseAnalysisManager.updateRecord(id, updated);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('修改已儲存至雲端，所有手機同步更新'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('修改失敗，請確認 Firebase 連線與權限'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
     }
-
-    LocalStorageHelper.saveRecords(records);
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('修改已儲存')));
-
-    Navigator.pop(context);
   }
 
   Widget input(String key) {
@@ -2454,10 +2722,15 @@ class _RecordEditPageState extends State<RecordEditPage> {
           setState(() {});
         },
         decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 10,
+          ),
           labelText: setting.direct
               ? '${setting.name}｜濃度'
               : '${setting.name}｜滴定值',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
         ),
       ),
     );
@@ -2494,34 +2767,80 @@ class _RecordEditPageState extends State<RecordEditPage> {
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 2,
-              child: Text(
-                setting.name,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            Expanded(
-              child: _editResult(
-                '中值',
-                setting.middle == null ? '無中值' : formatNumber(setting.middle!),
-              ),
-            ),
-            Expanded(
-              child: _editResult(
-                '濃度',
-                concentrationValue == null
-                    ? '-'
-                    : formatNumber(concentrationValue),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: _editResult('需添加量', addText, valueColor: addColor),
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 600) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    setting.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _editResult(
+                          '中值',
+                          setting.middle == null
+                              ? '無中值'
+                              : formatNumber(setting.middle!),
+                        ),
+                      ),
+                      Expanded(
+                        child: _editResult(
+                          '濃度',
+                          concentrationValue == null
+                              ? '-'
+                              : formatNumber(concentrationValue),
+                        ),
+                      ),
+                      Expanded(
+                        child: _editResult(
+                          '需添加量',
+                          addText,
+                          valueColor: addColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    setting.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  child: _editResult(
+                    '中值',
+                    setting.middle == null
+                        ? '無中值'
+                        : formatNumber(setting.middle!),
+                  ),
+                ),
+                Expanded(
+                  child: _editResult(
+                    '濃度',
+                    concentrationValue == null
+                        ? '-'
+                        : formatNumber(concentrationValue),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: _editResult('需添加量', addText, valueColor: addColor),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -2555,7 +2874,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
             child: const Padding(
               padding: EdgeInsets.all(14),
               child: Text(
-                '修改後會重新計算濃度、需添加量及咬食量',
+                '修改後會重新計算濃度、需添加量及咬食量，並同步到所有手機。',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -2568,6 +2887,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               setState(() {});
             },
             decoration: const InputDecoration(
+              isDense: true,
               labelText: '未棕化重量',
               suffixText: 'g',
               border: OutlineInputBorder(),
@@ -2581,6 +2901,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               setState(() {});
             },
             decoration: const InputDecoration(
+              isDense: true,
               labelText: '已棕化重量',
               suffixText: 'g',
               border: OutlineInputBorder(),
@@ -2590,7 +2911,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
           Card(
             color: const Color(0xFFEDE4DE),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
                   const Expanded(
@@ -2621,11 +2942,20 @@ class _RecordEditPageState extends State<RecordEditPage> {
           SizedBox(
             height: 55,
             child: ElevatedButton.icon(
-              onPressed: save,
-              icon: const Icon(Icons.save_outlined),
-              label: const Text(
-                '儲存修改',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              onPressed: _saving ? null : save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.cloud_upload_outlined),
+              label: Text(
+                _saving ? '雲端儲存中...' : '儲存修改',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -2641,8 +2971,13 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
+
     afterWeightController.dispose();
 
     super.dispose();
   }
 }
+
+// ============================================================
+// v1.2.0 完
+// ============================================================
