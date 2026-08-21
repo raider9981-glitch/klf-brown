@@ -1,6 +1,6 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.2
+// 版本：v1.1.3
 //
 // 本次版本修改內容：
 // 1. 只有管理者可以刪除化驗資料
@@ -16,6 +16,10 @@
 // 11. CBBA-A直接輸入濃度
 // 12. 保留瀏覽器 localStorage 存檔
 // 13. 化驗存檔結果只顯示咬食量，不顯示未棕化重量、已棕化重量
+// 14. 需添加量使用紅色字體
+// 15. 不用添加使用綠色字體
+// 16. 化驗頁面將「咬食量」移至第一順位
+// 17. 化驗存檔查看頁面將「咬食量」移至第一順位
 //
 // ============================================================
 
@@ -30,7 +34,7 @@ void main() {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.2';
+  static const String version = 'v1.1.3';
   static const String adminPassword = '0';
 
   static const String storageAuthorizedUsers = 'klf_authorized_users';
@@ -1049,9 +1053,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   double? biteAmount() {
     final before = parse(beforeWeightController.text);
+
     final after = parse(afterWeightController.text);
 
-    if (before == null || after == null) return null;
+    if (before == null || after == null) {
+      return null;
+    }
 
     return (before - after) / 100 * 21910;
   }
@@ -1111,6 +1118,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   Widget inputField(String key) {
     final setting = getSettings(widget.lineName)[key]!;
+
     final controller = controllers[key]!;
 
     return TextField(
@@ -1130,6 +1138,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   Widget _resultBox(String title, String value) {
+    Color? valueColor;
+
+    if (title == '需添加量') {
+      if (value == '不用添加') {
+        valueColor = Colors.green;
+      } else if (value != '-') {
+        valueColor = Colors.red;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
@@ -1143,7 +1161,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
           const SizedBox(height: 3),
           Text(
             value,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: valueColor,
+            ),
           ),
         ],
       ),
@@ -1152,7 +1174,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
+
     final controller = controllers[key]!;
+
     final value = controller.text;
 
     return Card(
@@ -1379,36 +1403,53 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 12),
+
               Card(
                 color: const Color(0xFFEDE4DE),
                 child: const Padding(
                   padding: EdgeInsets.all(14),
                   child: Text(
-                    '顯示方式：滴定值 → 中值 → 濃度 → 需添加量',
+                    '顯示方式：咬食量 → 滴定值 → 中值 → 濃度 → 需添加量',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
+
               const SizedBox(height: 12),
+
+              // ======================================================
+              // 咬食量第一順位
+              // ======================================================
+              biteCard(),
+
+              const SizedBox(height: 12),
+
               tankCard(
                 title: '第一槽｜酸洗槽',
                 description: '硫酸、雙氧水',
                 keys: const ['acid_sulfuric', 'acid_h2o2'],
               ),
+
               const SizedBox(height: 12),
+
               tankCard(
                 title: '第二槽｜清潔槽',
                 description: 'HL-II',
                 keys: const ['clean_hl2'],
               ),
+
               const SizedBox(height: 12),
+
               tankCard(
                 title: '第三槽｜預浸槽',
                 description: '雙氧水、CBBA-A',
                 keys: const ['pre_h2o2', 'pre_cbba'],
               ),
+
               const SizedBox(height: 12),
+
               tankCard(
                 title: '第四槽｜棕化槽',
                 description: '硫酸、雙氧水、CBBA-A、銅離子',
@@ -1419,9 +1460,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   'brown_copper',
                 ],
               ),
-              const SizedBox(height: 12),
-              biteCard(),
+
               const SizedBox(height: 15),
+
               SizedBox(
                 height: 58,
                 child: ElevatedButton.icon(
@@ -1433,7 +1474,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 12),
+
               SizedBox(
                 height: 52,
                 child: OutlinedButton.icon(
@@ -1449,7 +1492,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   label: const Text('查看化驗存檔'),
                 ),
               ),
+
               const SizedBox(height: 25),
+
               Center(
                 child: Text(
                   '${KLFConfig.appName} ${KLFConfig.version}',
@@ -1706,15 +1751,51 @@ class _RecordsPageState extends State<RecordsPage> {
   Widget _recordSummary(Map<String, dynamic> record) {
     final chemicals = Map<String, dynamic>.from(record['chemicals'] ?? {});
 
+    final biteValue =
+        record['biteAmount'] == null || record['biteAmount'].toString().isEmpty
+        ? '-'
+        : record['biteAmount'].toString();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Divider(),
         const SizedBox(height: 8),
+
+        // ======================================================
+        // 咬食量第一順位
+        // ======================================================
+        Card(
+          color: const Color(0xFFEDE4DE),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '咬食量',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Text(
+                  biteValue,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
         const Text(
           '化驗結果',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
+
         const SizedBox(height: 10),
 
         ...chemicals.entries.map((entry) {
@@ -1733,6 +1814,14 @@ class _RecordsPageState extends State<RecordsPage> {
           final concentration = data['concentration']?.toString() ?? '';
 
           final addAmount = data['addAmount']?.toString() ?? '';
+
+          Color? addColor;
+
+          if (addAmount == '不用添加') {
+            addColor = Colors.green;
+          } else if (addAmount.isNotEmpty && addAmount != '-') {
+            addColor = Colors.red;
+          }
 
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
@@ -1769,6 +1858,7 @@ class _RecordsPageState extends State<RecordsPage> {
                     child: _smallResult(
                       '需添加量',
                       addAmount.isEmpty ? '-' : addAmount,
+                      valueColor: addColor,
                     ),
                   ),
                 ],
@@ -1776,45 +1866,11 @@ class _RecordsPageState extends State<RecordsPage> {
             ),
           );
         }),
-
-        const SizedBox(height: 8),
-
-        // ======================================================
-        // 修改：
-        // 化驗存檔只顯示咬食量
-        // 不再顯示未棕化重量、已棕化重量
-        // ======================================================
-        Card(
-          color: const Color(0xFFEDE4DE),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    '咬食量',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Text(
-                  record['biteAmount'] == null ||
-                          record['biteAmount'].toString().isEmpty
-                      ? '-'
-                      : record['biteAmount'].toString(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ],
     );
   }
 
-  Widget _smallResult(String title, String value) {
+  Widget _smallResult(String title, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 5),
       child: Column(
@@ -1824,7 +1880,11 @@ class _RecordsPageState extends State<RecordsPage> {
           const SizedBox(height: 3),
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: valueColor,
+            ),
           ),
         ],
       ),
@@ -2015,6 +2075,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
       child: TextField(
         controller: controllers[key],
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onChanged: (_) {
+          setState(() {});
+        },
         decoration: InputDecoration(
           labelText: setting.direct
               ? '${setting.name}｜濃度'
@@ -2033,6 +2096,24 @@ class _RecordEditPageState extends State<RecordEditPage> {
     final concentrationValue = concentration(key, value);
 
     final add = addAmount(key, value);
+
+    String addText;
+
+    if (add == null) {
+      addText = '-';
+    } else if (add <= 0) {
+      addText = '不用添加';
+    } else {
+      addText = '${formatNumber(add)} ${setting.unit}';
+    }
+
+    Color? addColor;
+
+    if (addText == '不用添加') {
+      addColor = Colors.green;
+    } else if (addText != '-') {
+      addColor = Colors.red;
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -2063,14 +2144,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
             ),
             Expanded(
               flex: 2,
-              child: _editResult(
-                '需添加量',
-                add == null
-                    ? '-'
-                    : add <= 0
-                    ? '不用添加'
-                    : '${formatNumber(add)} ${setting.unit}',
-              ),
+              child: _editResult('需添加量', addText, valueColor: addColor),
             ),
           ],
         ),
@@ -2078,13 +2152,16 @@ class _RecordEditPageState extends State<RecordEditPage> {
     );
   }
 
-  Widget _editResult(String title, String value) {
+  Widget _editResult(String title, String value, {Color? valueColor}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
         const SizedBox(height: 3),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: TextStyle(fontWeight: FontWeight.bold, color: valueColor),
+        ),
       ],
     );
   }
@@ -2108,11 +2185,12 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
+
           const SizedBox(height: 12),
-          ...settings.keys.map(
-            (key) => Column(children: [input(key), resultPreview(key)]),
-          ),
-          const SizedBox(height: 10),
+
+          // ======================================================
+          // 咬食量第一順位
+          // ======================================================
           TextField(
             controller: beforeWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2125,7 +2203,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
+
           const SizedBox(height: 10),
+
           TextField(
             controller: afterWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2138,7 +2218,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
+
           const SizedBox(height: 15),
+
           Card(
             color: const Color(0xFFEDE4DE),
             child: Padding(
@@ -2165,7 +2247,15 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
+
+          const SizedBox(height: 15),
+
+          ...settings.keys.map(
+            (key) => Column(children: [input(key), resultPreview(key)]),
+          ),
+
           const SizedBox(height: 20),
+
           SizedBox(
             height: 55,
             child: ElevatedButton.icon(
