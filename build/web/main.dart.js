@@ -83819,20 +83819,18 @@ s=A.hr(B.d.dn(b))
 if(s==null)return null
 if(r.d)return B.c.aG(s*10)/10
 return B.c.aG(s*r.c*10)/10},
-rU(a,b){var s,r,q,p,o,n,m=null,l=A.fq(this.a.c).h(0,a)
-if(l==null)return m
-s=l.b
-if(s==null)return m
-r=l.e
-if(r<=0)return m
-q=this.nn(a,b)
-if(q==null)return m
+rU(a,b){var s,r,q,p,o,n=A.fq(this.a.c).h(0,a)
+if(n==null||n.b==null||n.e<=0)return null
+s=this.nn(a,b)
+if(s==null)return null
+r=n.b
+r.toString
+q=B.c.aG(r*10)/10
 p=B.c.aG(s*10)/10
-o=B.c.aG(q*10)/10
-if(o>=p)return 0
-n=B.c.aG(B.c.aG((p-o)*10)/10*10)
-if(n<=0)return 0
-return B.c.aG(n*r*10)/10},
+if(p>=q)return 0
+o=B.c.aG(B.c.aG((q-p)*10)/10*10)
+if(o<=0)return 0
+return B.c.aG(o*n.e*10)/10},
 T8(a,b){var s,r=A.fq(this.a.c).h(0,a)
 if(r==null||r.b==null)return"-"
 s=this.rU(a,b)

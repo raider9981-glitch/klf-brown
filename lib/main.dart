@@ -6,8 +6,8 @@
 // 1. 只有管理者可以刪除化驗資料
 // 2. 一般化驗人員不可刪除化驗資料
 // 3. 化驗結果完整顯示濃度及需添加量
-// 4. 化驗結果完整顯示未棕化重量、已棕化重量、咬食量
-// 5. 存檔資料查看時完整顯示所有化驗結果
+// 4. 化驗結果完整顯示咬食量
+// 5. 化驗存檔查看時完整顯示所有化驗結果
 // 6. 編輯存檔後重新計算濃度、添加量、咬食量
 // 7. A線、B線中值維持分開設定
 // 8. 所有濃度固定顯示小數點後1位
@@ -15,8 +15,7 @@
 // 10. 銅離子無中值，不計算添加量
 // 11. CBBA-A直接輸入濃度
 // 12. 保留瀏覽器 localStorage 存檔
-// 13. 修改化驗結果時只顯示咬食量，不顯示未棕化及已棕化重量結果
-// 14. 化驗存檔查看時只顯示咬食量，不顯示未棕化及已棕化重量
+// 13. 化驗存檔結果只顯示咬食量，不顯示未棕化重量、已棕化重量
 //
 // ============================================================
 
@@ -29,14 +28,9 @@ void main() {
   runApp(const KLFApp());
 }
 
-// ============================================================
-// 全域設定
-// ============================================================
-
 class KLFConfig {
   static const String appName = 'KLF-棕化';
   static const String version = 'v1.1.2';
-
   static const String adminPassword = '0';
 
   static const String storageAuthorizedUsers = 'klf_authorized_users';
@@ -44,14 +38,8 @@ class KLFConfig {
   static const String storageAnalysisRecords = 'klf_analysis_records';
 }
 
-// ============================================================
-// 本機儲存
-// ============================================================
-
 class LocalStorageHelper {
-  static String? get(String key) {
-    return html.window.localStorage[key];
-  }
+  static String? get(String key) => html.window.localStorage[key];
 
   static void set(String key, String value) {
     html.window.localStorage[key] = value;
@@ -64,9 +52,7 @@ class LocalStorageHelper {
   static List<String> getUsers() {
     final data = get(KLFConfig.storageAuthorizedUsers);
 
-    if (data == null || data.isEmpty) {
-      return [];
-    }
+    if (data == null || data.isEmpty) return [];
 
     try {
       final decoded = jsonDecode(data);
@@ -98,9 +84,7 @@ class LocalStorageHelper {
   static List<Map<String, dynamic>> getRecords() {
     final data = get(KLFConfig.storageAnalysisRecords);
 
-    if (data == null || data.isEmpty) {
-      return [];
-    }
+    if (data == null || data.isEmpty) return [];
 
     try {
       final decoded = jsonDecode(data);
@@ -121,10 +105,6 @@ class LocalStorageHelper {
   }
 }
 
-// ============================================================
-// App
-// ============================================================
-
 class KLFApp extends StatelessWidget {
   const KLFApp({super.key});
 
@@ -142,10 +122,6 @@ class KLFApp extends StatelessWidget {
     );
   }
 }
-
-// ============================================================
-// 啟動畫面
-// ============================================================
 
 class StartupPage extends StatefulWidget {
   const StartupPage({super.key});
@@ -185,10 +161,6 @@ class _StartupPageState extends State<StartupPage> {
     return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
-
-// ============================================================
-// 登入
-// ============================================================
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -339,10 +311,6 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// ============================================================
-// 管理者登入
-// ============================================================
-
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
 
@@ -440,10 +408,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     );
   }
 }
-
-// ============================================================
-// 管理者頁面
-// ============================================================
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -686,10 +650,6 @@ class _AdminPageState extends State<AdminPage> {
   }
 }
 
-// ============================================================
-// 首頁
-// ============================================================
-
 class HomePage extends StatelessWidget {
   final String userName;
 
@@ -871,10 +831,6 @@ class HomePage extends StatelessWidget {
   }
 }
 
-// ============================================================
-// 化學設定
-// ============================================================
-
 class ChemicalSetting {
   final String name;
   final double? middle;
@@ -892,10 +848,6 @@ class ChemicalSetting {
     required this.unit,
   });
 }
-
-// ============================================================
-// A線、B線設定
-// ============================================================
 
 Map<String, ChemicalSetting> getSettings(String line) {
   final bool isA = line == 'A線';
@@ -976,10 +928,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
   };
 }
 
-// ============================================================
-// 數值工具
-// ============================================================
-
 double roundToTenth(double value) {
   return (value * 10).round() / 10;
 }
@@ -987,10 +935,6 @@ double roundToTenth(double value) {
 String formatNumber(double value) {
   return value.toStringAsFixed(1);
 }
-
-// ============================================================
-// 化驗頁
-// ============================================================
 
 class AnalysisPage extends StatefulWidget {
   final String lineName;
@@ -1031,15 +975,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
   double? concentration(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
 
-    if (setting == null) {
-      return null;
-    }
+    if (setting == null) return null;
 
     final number = parse(value);
 
-    if (number == null) {
-      return null;
-    }
+    if (number == null) return null;
 
     if (setting.direct) {
       return roundToTenth(number);
@@ -1051,37 +991,24 @@ class _AnalysisPageState extends State<AnalysisPage> {
   double? addAmount(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
 
-    if (setting == null) {
-      return null;
-    }
-
-    if (setting.middle == null) {
-      return null;
-    }
-
-    if (setting.addPerPoint <= 0) {
+    if (setting == null || setting.middle == null || setting.addPerPoint <= 0) {
       return null;
     }
 
     final current = concentration(key, value);
 
-    if (current == null) {
-      return null;
-    }
+    if (current == null) return null;
 
     final middle = roundToTenth(setting.middle!);
     final actual = roundToTenth(current);
 
-    if (actual >= middle) {
-      return 0;
-    }
+    if (actual >= middle) return 0;
 
     final deficit = roundToTenth(middle - actual);
+
     final steps = (deficit * 10).round();
 
-    if (steps <= 0) {
-      return 0;
-    }
+    if (steps <= 0) return 0;
 
     return roundToTenth(steps * setting.addPerPoint);
   }
@@ -1095,13 +1022,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final amount = addAmount(key, value);
 
-    if (amount == null) {
-      return '-';
-    }
+    if (amount == null) return '-';
 
-    if (amount <= 0) {
-      return '不用添加';
-    }
+    if (amount <= 0) return '不用添加';
 
     return '${formatNumber(amount)} ${setting.unit}';
   }
@@ -1109,9 +1032,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   String displayConcentration(String key, String value) {
     final result = concentration(key, value);
 
-    if (result == null) {
-      return '-';
-    }
+    if (result == null) return '-';
 
     return formatNumber(result);
   }
@@ -1119,13 +1040,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
   String displayMiddle(String key) {
     final setting = getSettings(widget.lineName)[key];
 
-    if (setting == null) {
-      return '-';
-    }
+    if (setting == null) return '-';
 
-    if (setting.middle == null) {
-      return '無中值';
-    }
+    if (setting.middle == null) return '無中值';
 
     return formatNumber(roundToTenth(setting.middle!));
   }
@@ -1134,9 +1051,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final before = parse(beforeWeightController.text);
     final after = parse(afterWeightController.text);
 
-    if (before == null || after == null) {
-      return null;
-    }
+    if (before == null || after == null) return null;
 
     return (before - after) / 100 * 21910;
   }
@@ -1561,10 +1476,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 }
 
-// ============================================================
-// 存檔列表
-// ============================================================
-
 class RecordsPage extends StatefulWidget {
   final String userName;
 
@@ -1805,6 +1716,7 @@ class _RecordsPageState extends State<RecordsPage> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
+
         ...chemicals.entries.map((entry) {
           final key = entry.key;
 
@@ -1864,11 +1776,13 @@ class _RecordsPageState extends State<RecordsPage> {
             ),
           );
         }),
+
         const SizedBox(height: 8),
 
         // ======================================================
-        // 只顯示咬食量
-        // 不顯示未棕化重量、已棕化重量
+        // 修改：
+        // 化驗存檔只顯示咬食量
+        // 不再顯示未棕化重量、已棕化重量
         // ======================================================
         Card(
           color: const Color(0xFFEDE4DE),
@@ -1917,10 +1831,6 @@ class _RecordsPageState extends State<RecordsPage> {
     );
   }
 }
-
-// ============================================================
-// 存檔編輯
-// ============================================================
 
 class RecordEditPage extends StatefulWidget {
   final Map<String, dynamic> record;
@@ -1976,15 +1886,11 @@ class _RecordEditPageState extends State<RecordEditPage> {
   double? concentration(String key, String value) {
     final setting = getSettings(lineName)[key];
 
-    if (setting == null) {
-      return null;
-    }
+    if (setting == null) return null;
 
     final number = parse(value);
 
-    if (number == null) {
-      return null;
-    }
+    if (number == null) return null;
 
     if (setting.direct) {
       return roundToTenth(number);
@@ -2002,25 +1908,19 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
     final current = concentration(key, value);
 
-    if (current == null) {
-      return null;
-    }
+    if (current == null) return null;
 
     final middle = roundToTenth(setting.middle!);
 
     final actual = roundToTenth(current);
 
-    if (actual >= middle) {
-      return 0;
-    }
+    if (actual >= middle) return 0;
 
     final deficit = roundToTenth(middle - actual);
 
     final steps = (deficit * 10).round();
 
-    if (steps <= 0) {
-      return 0;
-    }
+    if (steps <= 0) return 0;
 
     return roundToTenth(steps * setting.addPerPoint);
   }
@@ -2213,10 +2113,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
             (key) => Column(children: [input(key), resultPreview(key)]),
           ),
           const SizedBox(height: 10),
-
-          // ==================================================
-          // 重量仍然可以輸入
-          // ==================================================
           TextField(
             controller: beforeWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2229,9 +2125,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
-
           const SizedBox(height: 10),
-
           TextField(
             controller: afterWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2244,12 +2138,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
-
           const SizedBox(height: 15),
-
-          // ==================================================
-          // 修改化驗結果只顯示咬食量
-          // ==================================================
           Card(
             color: const Color(0xFFEDE4DE),
             child: Padding(
@@ -2276,9 +2165,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
-
           SizedBox(
             height: 55,
             child: ElevatedButton.icon(
@@ -2302,7 +2189,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
-
     afterWeightController.dispose();
 
     super.dispose();
