@@ -1,15 +1,22 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.3
+// 版本：v1.1.2
 //
 // 本次版本修改內容：
-// 1. 保留 v1.1.2 全部功能
-// 2. 首頁新增「QR Code」
-// 3. QR Code 直接使用目前網頁網址
-// 4. QR Code 只用於方便其他人加入／開啟此網頁
-// 5. 不會在每筆化驗資料上新增 QR Code
-// 6. 使用 qr_flutter 套件產生 QR Code
-// 7. 保留瀏覽器 localStorage 存檔
+// 1. 只有管理者可以刪除化驗資料
+// 2. 一般化驗人員不可刪除化驗資料
+// 3. 化驗結果完整顯示濃度及需添加量
+// 4. 化驗結果完整顯示未棕化重量、已棕化重量、咬食量
+// 5. 存檔資料查看時完整顯示所有化驗結果
+// 6. 編輯存檔後重新計算濃度、添加量、咬食量
+// 7. A線、B線中值維持分開設定
+// 8. 所有濃度固定顯示小數點後1位
+// 9. 添加量以濃度小數第1位為計算基準
+// 10. 銅離子無中值，不計算添加量
+// 11. CBBA-A直接輸入濃度
+// 12. 保留瀏覽器 localStorage 存檔
+// 13. 修改化驗結果時只顯示咬食量，不顯示未棕化及已棕化重量結果
+// 14. 化驗存檔查看時只顯示咬食量，不顯示未棕化及已棕化重量
 //
 // ============================================================
 
@@ -17,7 +24,6 @@ import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
   runApp(const KLFApp());
@@ -29,7 +35,7 @@ void main() {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.3';
+  static const String version = 'v1.1.2';
 
   static const String adminPassword = '0';
 
@@ -689,75 +695,6 @@ class HomePage extends StatelessWidget {
 
   const HomePage({super.key, required this.userName});
 
-  // ==========================================================
-  // 取得目前網頁網址
-  // ==========================================================
-
-  String get currentWebUrl {
-    return html.window.location.href;
-  }
-
-  // ==========================================================
-  // QR Code
-  // ==========================================================
-
-  void _showQRCode(BuildContext context) {
-    final url = currentWebUrl;
-
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.qr_code_2),
-              SizedBox(width: 10),
-              Text('掃描 QR Code'),
-            ],
-          ),
-          content: SizedBox(
-            width: 320,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('使用手機掃描後即可開啟 KLF-棕化網頁', textAlign: TextAlign.center),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: QrImageView(
-                    data: url,
-                    version: QrVersions.auto,
-                    size: 240,
-                    backgroundColor: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                const Text(
-                  'QR Code 僅用於方便加入此網頁，'
-                  '不代表單筆化驗資料。',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('關閉'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -767,13 +704,6 @@ class HomePage extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          IconButton(
-            tooltip: 'QR Code',
-            icon: const Icon(Icons.qr_code_2),
-            onPressed: () {
-              _showQRCode(context);
-            },
-          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Center(
@@ -802,10 +732,6 @@ class HomePage extends StatelessWidget {
                   style: TextStyle(color: Colors.grey, fontSize: 16),
                 ),
                 const SizedBox(height: 30),
-
-                // ==================================================
-                // A線 / B線
-                // ==================================================
                 LayoutBuilder(
                   builder: (context, constraints) {
                     if (constraints.maxWidth < 650) {
@@ -831,66 +757,7 @@ class HomePage extends StatelessWidget {
                     );
                   },
                 ),
-
                 const SizedBox(height: 20),
-
-                // ==================================================
-                // QR Code 卡片
-                // ==================================================
-                Card(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () {
-                      _showQRCode(context);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEDE4DE),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.qr_code_2,
-                              size: 42,
-                              color: Color(0xFF6B3F22),
-                            ),
-                          ),
-                          const SizedBox(width: 15),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'QR Code｜加入此網頁',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                SizedBox(height: 5),
-                                Text(
-                                  '掃描 QR Code，讓其他人快速開啟 KLF-棕化網頁',
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.arrow_forward),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // ==================================================
-                // 化驗存檔
-                // ==================================================
                 Card(
                   child: ListTile(
                     leading: const Icon(
@@ -913,12 +780,7 @@ class HomePage extends StatelessWidget {
                     },
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // ==================================================
-                // 化驗週期
-                // ==================================================
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -1270,7 +1132,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   double? biteAmount() {
     final before = parse(beforeWeightController.text);
-
     final after = parse(afterWeightController.text);
 
     if (before == null || after == null) {
@@ -1335,7 +1196,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   Widget inputField(String key) {
     final setting = getSettings(widget.lineName)[key]!;
-
     final controller = controllers[key]!;
 
     return TextField(
@@ -1377,7 +1237,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
-
     final controller = controllers[key]!;
     final value = controller.text;
 
@@ -2006,28 +1865,31 @@ class _RecordsPageState extends State<RecordsPage> {
           );
         }),
         const SizedBox(height: 8),
+
+        // ======================================================
+        // 只顯示咬食量
+        // 不顯示未棕化重量、已棕化重量
+        // ======================================================
         Card(
           color: const Color(0xFFEDE4DE),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(
               children: [
-                Expanded(
+                const Expanded(
                   child: Text(
-                    '未棕化重量：${record['beforeWeight'] ?? '-'} g',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    '咬食量',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                Expanded(
-                  child: Text(
-                    '已棕化重量：${record['afterWeight'] ?? '-'} g',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    '咬食量：${record['biteAmount'] == null || record['biteAmount'].toString().isEmpty ? '-' : record['biteAmount']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  record['biteAmount'] == null ||
+                          record['biteAmount'].toString().isEmpty
+                      ? '-'
+                      : record['biteAmount'].toString(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
                 ),
               ],
@@ -2253,9 +2115,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
       child: TextField(
         controller: controllers[key],
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        onChanged: (_) {
-          setState(() {});
-        },
         decoration: InputDecoration(
           labelText: setting.direct
               ? '${setting.name}｜濃度'
@@ -2354,6 +2213,10 @@ class _RecordEditPageState extends State<RecordEditPage> {
             (key) => Column(children: [input(key), resultPreview(key)]),
           ),
           const SizedBox(height: 10),
+
+          // ==================================================
+          // 重量仍然可以輸入
+          // ==================================================
           TextField(
             controller: beforeWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2366,7 +2229,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
+
           const SizedBox(height: 10),
+
           TextField(
             controller: afterWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2379,7 +2244,12 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
+
           const SizedBox(height: 15),
+
+          // ==================================================
+          // 修改化驗結果只顯示咬食量
+          // ==================================================
           Card(
             color: const Color(0xFFEDE4DE),
             child: Padding(
@@ -2406,7 +2276,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
+
           const SizedBox(height: 20),
+
           SizedBox(
             height: 55,
             child: ElevatedButton.icon(
@@ -2430,6 +2302,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
+
     afterWeightController.dispose();
 
     super.dispose();
