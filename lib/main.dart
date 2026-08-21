@@ -1,44 +1,135 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.6
+// 版本：v1.1.7
 //
 // 本次版本修改內容：
-// 1. 首頁右上角增加「管理者」入口
-// 2. 一般人員登入後可直接進入管理者登入
-// 3. 管理者密碼維持原本設定
-// 4. QR Code 移至「化驗前一個畫面」首頁
-// 5. QR Code 不放在化驗畫面
-// 6. QR Code 掃描後直接開啟 KLF-棕化網站
-// 7. 不自動授權
-// 8. 不修改原有授權人員系統
-// 9. 不修改化驗計算公式
-// 10. 不修改化驗存檔功能
-// 11. 不修改管理者權限功能
+// 1. 授權人員改為 Firebase Firestore 雲端同步
+// 2. 管理者新增授權人員後，所有手機／電腦皆可使用
+// 3. 管理者刪除授權人員後，所有裝置同步失效
+// 4. 登入時直接查詢 Firebase 授權名單
+// 5. 保留原本管理者密碼
+// 6. 保留原本管理者入口
+// 7. 保留原本 QR Code 功能
+// 8. 保留原本化驗計算公式
+// 9. 保留原本化驗存檔功能
+// 10. 化驗資料仍維持目前裝置本機存檔
+// 11. 不自動授權
 //
 // ============================================================
 
 import 'dart:convert';
 import 'dart:html' as html;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-void main() {
+import 'firebase_options.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(const KLFApp());
 }
 
+// ============================================================
+// Firebase 授權管理
+// ============================================================
+
+class FirebaseUserManager {
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static const String collectionName = 'authorized_users';
+
+  // 取得所有授權人員
+  static Future<List<String>> getUsers() async {
+    final snapshot = await _firestore
+        .collection(collectionName)
+        .orderBy('name')
+        .get();
+
+    return snapshot.docs
+        .map((doc) => (doc.data()['name'] ?? '').toString().trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+  }
+
+  // 檢查某個名稱是否已授權
+  static Future<bool> isAuthorized(String name) async {
+    final cleanName = name.trim();
+
+    if (cleanName.isEmpty) {
+      return false;
+    }
+
+    final snapshot = await _firestore
+        .collection(collectionName)
+        .where('name', isEqualTo: cleanName)
+        .limit(1)
+        .get();
+
+    return snapshot.docs.isNotEmpty;
+  }
+
+  // 新增授權人員
+  static Future<bool> addUser(String name) async {
+    final cleanName = name.trim();
+
+    if (cleanName.isEmpty) {
+      return false;
+    }
+
+    final exists = await isAuthorized(cleanName);
+
+    if (exists) {
+      return false;
+    }
+
+    await _firestore.collection(collectionName).add({
+      'name': cleanName,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    return true;
+  }
+
+  // 刪除授權人員
+  static Future<void> deleteUser(String name) async {
+    final snapshot = await _firestore
+        .collection(collectionName)
+        .where('name', isEqualTo: name.trim())
+        .get();
+
+    for (final doc in snapshot.docs) {
+      await doc.reference.delete();
+    }
+  }
+}
+
+// ============================================================
+// 系統設定
+// ============================================================
+
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.6';
+  static const String version = 'v1.1.7';
+
   static const String adminPassword = '0';
 
   static const String websiteUrl =
       'https://raider9981-glitch.github.io/klf-brown/';
 
-  static const String storageAuthorizedUsers = 'klf_authorized_users';
   static const String storageDeviceUser = 'klf_device_user';
+
   static const String storageAnalysisRecords = 'klf_analysis_records';
 }
+
+// ============================================================
+// 本機 Storage
+// ============================================================
 
 class LocalStorageHelper {
   static String? get(String key) => html.window.localStorage[key];
@@ -49,26 +140,6 @@ class LocalStorageHelper {
 
   static void remove(String key) {
     html.window.localStorage.remove(key);
-  }
-
-  static List<String> getUsers() {
-    final data = get(KLFConfig.storageAuthorizedUsers);
-
-    if (data == null || data.isEmpty) return [];
-
-    try {
-      final decoded = jsonDecode(data);
-
-      if (decoded is List) {
-        return decoded.map((e) => e.toString()).toList();
-      }
-    } catch (_) {}
-
-    return [];
-  }
-
-  static void saveUsers(List<String> users) {
-    set(KLFConfig.storageAuthorizedUsers, jsonEncode(users));
   }
 
   static String? getDeviceUser() {
@@ -86,7 +157,9 @@ class LocalStorageHelper {
   static List<Map<String, dynamic>> getRecords() {
     final data = get(KLFConfig.storageAnalysisRecords);
 
-    if (data == null || data.isEmpty) return [];
+    if (data == null || data.isEmpty) {
+      return [];
+    }
 
     try {
       final decoded = jsonDecode(data);
@@ -107,6 +180,10 @@ class LocalStorageHelper {
   }
 }
 
+// ============================================================
+// App
+// ============================================================
+
 class KLFApp extends StatelessWidget {
   const KLFApp({super.key});
 
@@ -125,6 +202,10 @@ class KLFApp extends StatelessWidget {
   }
 }
 
+// ============================================================
+// 啟動頁
+// ============================================================
+
 class StartupPage extends StatefulWidget {
   const StartupPage({super.key});
 
@@ -142,20 +223,31 @@ class _StartupPageState extends State<StartupPage> {
     });
   }
 
-  void _checkDevice() {
+  Future<void> _checkDevice() async {
     final deviceUser = LocalStorageHelper.getDeviceUser();
 
     if (deviceUser != null && deviceUser.trim().isNotEmpty) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HomePage(userName: deviceUser)),
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-      );
+      final authorized = await FirebaseUserManager.isAuthorized(deviceUser);
+
+      if (!mounted) return;
+
+      if (authorized) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => HomePage(userName: deviceUser)),
+        );
+        return;
+      }
+
+      LocalStorageHelper.clearDeviceUser();
     }
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+    );
   }
 
   @override
@@ -163,6 +255,10 @@ class _StartupPageState extends State<StartupPage> {
     return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
+
+// ============================================================
+// 登入
+// ============================================================
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -175,8 +271,9 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _nameController = TextEditingController();
 
   String _errorMessage = '';
+  bool _loading = false;
 
-  void _login() {
+  Future<void> _login() async {
     final name = _nameController.text.trim();
 
     if (name.isEmpty) {
@@ -186,19 +283,40 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final users = LocalStorageHelper.getUsers();
+    setState(() {
+      _loading = true;
+      _errorMessage = '';
+    });
 
-    if (users.contains(name)) {
-      LocalStorageHelper.saveDeviceUser(name);
+    try {
+      final authorized = await FirebaseUserManager.isAuthorized(name);
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HomePage(userName: name)),
-      );
-    } else {
+      if (!mounted) return;
+
+      if (authorized) {
+        LocalStorageHelper.saveDeviceUser(name);
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => HomePage(userName: name)),
+        );
+      } else {
+        setState(() {
+          _errorMessage = '名稱未授權，無法登入';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+
       setState(() {
-        _errorMessage = '名稱未授權，無法登入';
+        _errorMessage = '無法連線 Firebase，請確認網路連線';
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -253,6 +371,7 @@ class _LoginPageState extends State<LoginPage> {
                         controller: _nameController,
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) => _login(),
+                        enabled: !_loading,
                         decoration: InputDecoration(
                           labelText: '授權人員名稱',
                           hintText: '請輸入已授權名稱',
@@ -267,11 +386,19 @@ class _LoginPageState extends State<LoginPage> {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: _login,
-                          child: const Text(
-                            '登入',
-                            style: TextStyle(fontSize: 18),
-                          ),
+                          onPressed: _loading ? null : _login,
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : const Text(
+                                  '登入',
+                                  style: TextStyle(fontSize: 18),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 15),
@@ -284,6 +411,7 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 15),
                         Text(
                           _errorMessage,
+                          textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.red),
                         ),
                       ],
@@ -312,6 +440,10 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
+// ============================================================
+// 管理者登入
+// ============================================================
 
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
@@ -411,6 +543,10 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   }
 }
 
+// ============================================================
+// 管理者頁面
+// ============================================================
+
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
 
@@ -422,6 +558,8 @@ class _AdminPageState extends State<AdminPage> {
   final TextEditingController _nameController = TextEditingController();
 
   List<String> _users = [];
+  bool _loading = true;
+  bool _adding = false;
 
   @override
   void initState() {
@@ -429,13 +567,32 @@ class _AdminPageState extends State<AdminPage> {
     _loadUsers();
   }
 
-  void _loadUsers() {
+  Future<void> _loadUsers() async {
     setState(() {
-      _users = LocalStorageHelper.getUsers();
+      _loading = true;
     });
+
+    try {
+      final users = await FirebaseUserManager.getUsers();
+
+      if (!mounted) return;
+
+      setState(() {
+        _users = users;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+      });
+
+      _showMessage('無法讀取 Firebase 授權名單');
+    }
   }
 
-  void _addUser() {
+  Future<void> _addUser() async {
     final name = _nameController.text.trim();
 
     if (name.isEmpty) {
@@ -443,54 +600,80 @@ class _AdminPageState extends State<AdminPage> {
       return;
     }
 
-    if (_users.contains(name)) {
-      _showMessage('這個名稱已經存在');
-      return;
+    setState(() {
+      _adding = true;
+    });
+
+    try {
+      final added = await FirebaseUserManager.addUser(name);
+
+      if (!mounted) return;
+
+      if (!added) {
+        _showMessage('這個名稱已經存在');
+        return;
+      }
+
+      _nameController.clear();
+
+      await _loadUsers();
+
+      if (!mounted) return;
+
+      _showMessage('已新增授權人員：$name');
+    } catch (_) {
+      if (!mounted) return;
+
+      _showMessage('新增失敗，請確認 Firebase 連線');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _adding = false;
+        });
+      }
     }
-
-    _users.add(name);
-
-    LocalStorageHelper.saveUsers(_users);
-
-    _nameController.clear();
-
-    setState(() {});
-
-    _showMessage('已新增授權人員：$name');
   }
 
-  void _deleteUser(String name) {
-    showDialog(
+  Future<void> _deleteUser(String name) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) {
         return AlertDialog(
           title: const Text('刪除授權人員'),
-          content: Text('確定要刪除「$name」嗎？'),
+          content: Text('確定要刪除「$name」嗎？\n\n刪除後所有裝置都將無法再使用此名稱登入。'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context, false),
               child: const Text('取消'),
             ),
             ElevatedButton(
-              onPressed: () {
-                _users.remove(name);
-
-                LocalStorageHelper.saveUsers(_users);
-
-                setState(() {});
-
-                Navigator.pop(context);
-
-                _showMessage('已刪除：$name');
-              },
+              onPressed: () => Navigator.pop(context, true),
               child: const Text('刪除'),
             ),
           ],
         );
       },
     );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await FirebaseUserManager.deleteUser(name);
+
+      if (!mounted) return;
+
+      await _loadUsers();
+
+      if (!mounted) return;
+
+      _showMessage('已刪除：$name');
+    } catch (_) {
+      if (!mounted) return;
+
+      _showMessage('刪除失敗，請確認 Firebase 連線');
+    }
   }
 
   void _clearCurrentDevice() {
@@ -522,6 +705,13 @@ class _AdminPageState extends State<AdminPage> {
             Navigator.pop(context);
           },
         ),
+        actions: [
+          IconButton(
+            tooltip: '重新整理',
+            icon: const Icon(Icons.refresh),
+            onPressed: _loading ? null : _loadUsers,
+          ),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -542,12 +732,18 @@ class _AdminPageState extends State<AdminPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '新增後會同步到 Firebase，其他手機也可以使用。',
+                        style: TextStyle(color: Colors.grey),
+                      ),
                       const SizedBox(height: 18),
                       Row(
                         children: [
                           Expanded(
                             child: TextField(
                               controller: _nameController,
+                              enabled: !_adding,
                               onSubmitted: (_) => _addUser(),
                               decoration: InputDecoration(
                                 labelText: '授權人員名稱',
@@ -562,8 +758,16 @@ class _AdminPageState extends State<AdminPage> {
                           SizedBox(
                             height: 52,
                             child: ElevatedButton.icon(
-                              onPressed: _addUser,
-                              icon: const Icon(Icons.add),
+                              onPressed: _adding ? null : _addUser,
+                              icon: _adding
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.add),
                               label: const Text('新增'),
                             ),
                           ),
@@ -580,15 +784,27 @@ class _AdminPageState extends State<AdminPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '已授權人員',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              '已授權人員',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          if (_loading)
+                            const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 15),
-                      if (_users.isEmpty)
+                      if (!_loading && _users.isEmpty)
                         const Padding(
                           padding: EdgeInsets.all(20),
                           child: Center(
@@ -606,6 +822,10 @@ class _AdminPageState extends State<AdminPage> {
                           title: Text(
                             name,
                             style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: const Text(
+                            'Firebase 雲端授權',
+                            style: TextStyle(color: Colors.green),
                           ),
                           trailing: IconButton(
                             icon: const Icon(
@@ -639,6 +859,15 @@ class _AdminPageState extends State<AdminPage> {
               const SizedBox(height: 20),
               Card(
                 child: ListTile(
+                  leading: const Icon(Icons.cloud_done, color: Colors.green),
+                  title: const Text('授權資料來源'),
+                  subtitle: const Text('Firebase Cloud Firestore'),
+                  trailing: const Text('雲端同步'),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Card(
+                child: ListTile(
                   leading: const Icon(Icons.info_outline),
                   title: const Text('系統版本'),
                   trailing: Text(KLFConfig.version),
@@ -652,14 +881,14 @@ class _AdminPageState extends State<AdminPage> {
   }
 }
 
+// ============================================================
+// 首頁
+// ============================================================
+
 class HomePage extends StatelessWidget {
   final String userName;
 
   const HomePage({super.key, required this.userName});
-
-  // ============================================================
-  // QR Code
-  // ============================================================
 
   void showWebsiteQrCode(BuildContext context) {
     showDialog(
@@ -730,9 +959,6 @@ class HomePage extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          // ========================================================
-          // 管理者入口
-          // ========================================================
           IconButton(
             tooltip: '管理者',
             icon: const Icon(Icons.admin_panel_settings_outlined),
@@ -740,11 +966,6 @@ class HomePage extends StatelessWidget {
               openAdmin(context);
             },
           ),
-
-          // ========================================================
-          // QR Code 入口
-          // 放在化驗前一個畫面，不放在化驗畫面
-          // ========================================================
           IconButton(
             tooltip: '邀請開啟網站',
             icon: const Icon(Icons.qr_code_2),
@@ -752,7 +973,6 @@ class HomePage extends StatelessWidget {
               showWebsiteQrCode(context);
             },
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Center(
@@ -920,6 +1140,10 @@ class HomePage extends StatelessWidget {
   }
 }
 
+// ============================================================
+// 化驗設定
+// ============================================================
+
 class ChemicalSetting {
   final String name;
   final double? middle;
@@ -1025,6 +1249,10 @@ String formatNumber(double value) {
   return value.toStringAsFixed(1);
 }
 
+// ============================================================
+// 化驗頁面
+// ============================================================
+
 class AnalysisPage extends StatefulWidget {
   final String lineName;
   final String userName;
@@ -1064,11 +1292,15 @@ class _AnalysisPageState extends State<AnalysisPage> {
   double? concentration(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
 
-    if (setting == null) return null;
+    if (setting == null) {
+      return null;
+    }
 
     final number = parse(value);
 
-    if (number == null) return null;
+    if (number == null) {
+      return null;
+    }
 
     if (setting.direct) {
       return roundToTenth(number);
@@ -1086,18 +1318,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final current = concentration(key, value);
 
-    if (current == null) return null;
+    if (current == null) {
+      return null;
+    }
 
     final middle = roundToTenth(setting.middle!);
+
     final actual = roundToTenth(current);
 
-    if (actual >= middle) return 0;
+    if (actual >= middle) {
+      return 0;
+    }
 
     final deficit = roundToTenth(middle - actual);
 
     final steps = (deficit * 10).round();
 
-    if (steps <= 0) return 0;
+    if (steps <= 0) {
+      return 0;
+    }
 
     return roundToTenth(steps * setting.addPerPoint);
   }
@@ -1111,9 +1350,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final amount = addAmount(key, value);
 
-    if (amount == null) return '-';
+    if (amount == null) {
+      return '-';
+    }
 
-    if (amount <= 0) return '不用添加';
+    if (amount <= 0) {
+      return '不用添加';
+    }
 
     return '${formatNumber(amount)} ${setting.unit}';
   }
@@ -1121,7 +1364,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
   String displayConcentration(String key, String value) {
     final result = concentration(key, value);
 
-    if (result == null) return '-';
+    if (result == null) {
+      return '-';
+    }
 
     return formatNumber(result);
   }
@@ -1129,9 +1374,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
   String displayMiddle(String key) {
     final setting = getSettings(widget.lineName)[key];
 
-    if (setting == null) return '-';
+    if (setting == null) {
+      return '-';
+    }
 
-    if (setting.middle == null) return '無中值';
+    if (setting.middle == null) {
+      return '無中值';
+    }
 
     return formatNumber(roundToTenth(setting.middle!));
   }
@@ -1155,6 +1404,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     for (final entry in settings.entries) {
       final key = entry.key;
+
       final value = controllers[key]!.text.trim();
 
       final concentrationValue = concentration(key, value);
@@ -1585,11 +1835,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     beforeWeightController.dispose();
+
     afterWeightController.dispose();
 
     super.dispose();
   }
 }
+
+// ============================================================
+// 化驗存檔
+// ============================================================
 
 class RecordsPage extends StatefulWidget {
   final String userName;
@@ -1800,7 +2055,7 @@ class _RecordsPageState extends State<RecordsPage> {
                             color: Colors.red,
                           ),
                           onPressed: () {
-                            _requestAdminDelete(record['id'].toString());
+                            _requestAdminDelete(record['id']);
                           },
                         ),
                       ],
@@ -1954,8 +2209,13 @@ class _RecordsPageState extends State<RecordsPage> {
   }
 }
 
+// ============================================================
+// 修改化驗資料
+// ============================================================
+
 class RecordEditPage extends StatefulWidget {
   final Map<String, dynamic> record;
+
   final String userName;
 
   const RecordEditPage({
@@ -2008,11 +2268,15 @@ class _RecordEditPageState extends State<RecordEditPage> {
   double? concentration(String key, String value) {
     final setting = getSettings(lineName)[key];
 
-    if (setting == null) return null;
+    if (setting == null) {
+      return null;
+    }
 
     final number = parse(value);
 
-    if (number == null) return null;
+    if (number == null) {
+      return null;
+    }
 
     if (setting.direct) {
       return roundToTenth(number);
@@ -2030,19 +2294,25 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
     final current = concentration(key, value);
 
-    if (current == null) return null;
+    if (current == null) {
+      return null;
+    }
 
     final middle = roundToTenth(setting.middle!);
 
     final actual = roundToTenth(current);
 
-    if (actual >= middle) return 0;
+    if (actual >= middle) {
+      return 0;
+    }
 
     final deficit = roundToTenth(middle - actual);
 
     final steps = (deficit * 10).round();
 
-    if (steps <= 0) return 0;
+    if (steps <= 0) {
+      return 0;
+    }
 
     return roundToTenth(steps * setting.addPerPoint);
   }
@@ -2328,6 +2598,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
+
     afterWeightController.dispose();
 
     super.dispose();
