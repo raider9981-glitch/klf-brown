@@ -3,13 +3,14 @@
 // 版本：v1.1.5
 //
 // 本次版本修改內容：
-// 1. 化驗畫面增加「邀請開啟網站」QR Code
+// 1. 在 A線／B線選擇畫面增加「邀請開啟網站」QR Code
 // 2. QR Code 掃描後直接開啟 KLF-棕化網站
-// 3. 不自動授權
-// 4. 不修改原有授權人員系統
-// 5. 不修改化驗計算公式
-// 6. 不修改化驗存檔功能
-// 7. 不修改管理者權限功能
+// 3. QR Code 不放在化驗畫面
+// 4. 不自動授權
+// 5. 不修改原有授權人員系統
+// 6. 不修改化驗計算公式
+// 7. 不修改化驗存檔功能
+// 8. 不修改管理者權限功能
 //
 // ============================================================
 
@@ -648,10 +649,68 @@ class _AdminPageState extends State<AdminPage> {
   }
 }
 
+// ============================================================
+// 首頁／A線B線選擇畫面
+// QR Code 放在這個畫面
+// ============================================================
+
 class HomePage extends StatelessWidget {
   final String userName;
 
   const HomePage({super.key, required this.userName});
+
+  void _showWebsiteQrCode(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.qr_code_2),
+              SizedBox(width: 10),
+              Text('KLF-棕化網站 QR Code'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '使用手機掃描 QR Code 即可開啟 KLF-棕化網站',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  color: Colors.white,
+                  child: QrImageView(
+                    data: KLFConfig.websiteUrl,
+                    version: QrVersions.auto,
+                    size: 250,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  '掃描後仍需使用已授權名稱登入',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('關閉'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -662,6 +721,14 @@ class HomePage extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            tooltip: '邀請開啟網站',
+            icon: const Icon(Icons.qr_code_2),
+            onPressed: () {
+              _showWebsiteQrCode(context);
+            },
+          ),
+          const SizedBox(width: 6),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Center(
@@ -1110,63 +1177,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  // ============================================================
-  // QR Code
-  // ============================================================
-
-  void showWebsiteQrCode() {
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.qr_code_2),
-              SizedBox(width: 10),
-              Text('KLF-棕化網站 QR Code'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '使用手機掃描 QR Code 即可開啟 KLF-棕化網站',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  color: Colors.white,
-                  child: QrImageView(
-                    data: KLFConfig.websiteUrl,
-                    version: QrVersions.auto,
-                    size: 250,
-                    backgroundColor: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  '掃描後仍需使用已授權名稱登入',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('關閉'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget inputField(String key) {
     final setting = getSettings(widget.lineName)[key]!;
 
@@ -1432,17 +1442,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.lineName}｜藥水化驗'),
-        actions: [
-          IconButton(
-            tooltip: '邀請開啟網站',
-            icon: const Icon(Icons.qr_code_2),
-            onPressed: showWebsiteQrCode,
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
+      appBar: AppBar(title: Text('${widget.lineName}｜藥水化驗')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
@@ -1464,9 +1464,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               Card(
                 color: const Color(0xFFEDE4DE),
                 child: const Padding(
@@ -1480,42 +1478,31 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         ),
                       ),
                       SizedBox(width: 10),
-                      Icon(Icons.qr_code_2),
                     ],
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               biteCard(),
-
               const SizedBox(height: 12),
-
               tankCard(
                 title: '第一槽｜酸洗槽',
                 description: '硫酸、雙氧水',
                 keys: const ['acid_sulfuric', 'acid_h2o2'],
               ),
-
               const SizedBox(height: 12),
-
               tankCard(
                 title: '第二槽｜清潔槽',
                 description: 'HL-II',
                 keys: const ['clean_hl2'],
               ),
-
               const SizedBox(height: 12),
-
               tankCard(
                 title: '第三槽｜預浸槽',
                 description: '雙氧水、CBBA-A',
                 keys: const ['pre_h2o2', 'pre_cbba'],
               ),
-
               const SizedBox(height: 12),
-
               tankCard(
                 title: '第四槽｜棕化槽',
                 description: '硫酸、雙氧水、CBBA-A、銅離子',
@@ -1526,9 +1513,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   'brown_copper',
                 ],
               ),
-
               const SizedBox(height: 15),
-
               SizedBox(
                 height: 58,
                 child: ElevatedButton.icon(
@@ -1540,9 +1525,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               SizedBox(
                 height: 52,
                 child: OutlinedButton.icon(
@@ -1558,9 +1541,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   label: const Text('查看化驗存檔'),
                 ),
               ),
-
               const SizedBox(height: 25),
-
               Center(
                 child: Text(
                   '${KLFConfig.appName} ${KLFConfig.version}',
@@ -2032,7 +2013,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
     final actual = roundToTenth(current);
 
-    if (actual >= middle) return 0;
+    if (actual >= middle) {
+      return 0;
+    }
 
     final deficit = roundToTenth(middle - actual);
 
@@ -2243,9 +2226,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 12),
-
           TextField(
             controller: beforeWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2258,9 +2239,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
-
           const SizedBox(height: 10),
-
           TextField(
             controller: afterWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2273,9 +2252,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
-
           const SizedBox(height: 15),
-
           Card(
             color: const Color(0xFFEDE4DE),
             child: Padding(
@@ -2302,15 +2279,11 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 15),
-
           ...settings.keys.map(
             (key) => Column(children: [input(key), resultPreview(key)]),
           ),
-
           const SizedBox(height: 20),
-
           SizedBox(
             height: 55,
             child: ElevatedButton.icon(
