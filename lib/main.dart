@@ -1,20 +1,15 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.2
+// 版本：v1.1.3
 //
 // 本次版本修改內容：
-// 1. 只有管理者可以刪除化驗資料
-// 2. 一般化驗人員不可刪除化驗資料
-// 3. 化驗結果完整顯示濃度及需添加量
-// 4. 化驗結果完整顯示未棕化重量、已棕化重量、咬食量
-// 5. 存檔資料查看時完整顯示所有化驗結果
-// 6. 編輯存檔後重新計算濃度、添加量、咬食量
-// 7. A線、B線中值維持分開設定
-// 8. 所有濃度固定顯示小數點後1位
-// 9. 添加量以濃度小數第1位為計算基準
-// 10. 銅離子無中值，不計算添加量
-// 11. CBBA-A直接輸入濃度
-// 12. 保留瀏覽器 localStorage 存檔
+// 1. 保留 v1.1.2 全部功能
+// 2. 首頁新增「QR Code」
+// 3. QR Code 直接使用目前網頁網址
+// 4. QR Code 只用於方便其他人加入／開啟此網頁
+// 5. 不會在每筆化驗資料上新增 QR Code
+// 6. 使用 qr_flutter 套件產生 QR Code
+// 7. 保留瀏覽器 localStorage 存檔
 //
 // ============================================================
 
@@ -22,6 +17,7 @@ import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
   runApp(const KLFApp());
@@ -33,7 +29,7 @@ void main() {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.2';
+  static const String version = 'v1.1.3';
 
   static const String adminPassword = '0';
 
@@ -693,6 +689,75 @@ class HomePage extends StatelessWidget {
 
   const HomePage({super.key, required this.userName});
 
+  // ==========================================================
+  // 取得目前網頁網址
+  // ==========================================================
+
+  String get currentWebUrl {
+    return html.window.location.href;
+  }
+
+  // ==========================================================
+  // QR Code
+  // ==========================================================
+
+  void _showQRCode(BuildContext context) {
+    final url = currentWebUrl;
+
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.qr_code_2),
+              SizedBox(width: 10),
+              Text('掃描 QR Code'),
+            ],
+          ),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('使用手機掃描後即可開啟 KLF-棕化網頁', textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: QrImageView(
+                    data: url,
+                    version: QrVersions.auto,
+                    size: 240,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                const Text(
+                  'QR Code 僅用於方便加入此網頁，'
+                  '不代表單筆化驗資料。',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('關閉'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -702,6 +767,13 @@ class HomePage extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            tooltip: 'QR Code',
+            icon: const Icon(Icons.qr_code_2),
+            onPressed: () {
+              _showQRCode(context);
+            },
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Center(
@@ -730,6 +802,10 @@ class HomePage extends StatelessWidget {
                   style: TextStyle(color: Colors.grey, fontSize: 16),
                 ),
                 const SizedBox(height: 30),
+
+                // ==================================================
+                // A線 / B線
+                // ==================================================
                 LayoutBuilder(
                   builder: (context, constraints) {
                     if (constraints.maxWidth < 650) {
@@ -755,7 +831,66 @@ class HomePage extends StatelessWidget {
                     );
                   },
                 ),
+
                 const SizedBox(height: 20),
+
+                // ==================================================
+                // QR Code 卡片
+                // ==================================================
+                Card(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      _showQRCode(context);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEDE4DE),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.qr_code_2,
+                              size: 42,
+                              color: Color(0xFF6B3F22),
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'QR Code｜加入此網頁',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                SizedBox(height: 5),
+                                Text(
+                                  '掃描 QR Code，讓其他人快速開啟 KLF-棕化網頁',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ==================================================
+                // 化驗存檔
+                // ==================================================
                 Card(
                   child: ListTile(
                     leading: const Icon(
@@ -778,7 +913,12 @@ class HomePage extends StatelessWidget {
                     },
                   ),
                 ),
+
                 const SizedBox(height: 20),
+
+                // ==================================================
+                // 化驗週期
+                // ==================================================
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -907,7 +1047,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
-
     'acid_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: 0.5,
@@ -916,7 +1055,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 0.5,
       unit: 'L',
     ),
-
     'clean_hl2': ChemicalSetting(
       name: 'HL-II',
       middle: isA ? 7.0 : 3.7,
@@ -925,7 +1063,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
-
     'pre_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: isA ? 2.0 : 1.5,
@@ -934,7 +1071,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
-
     'pre_cbba': ChemicalSetting(
       name: 'CBBA-A',
       middle: isA ? 1.5 : 2.5,
@@ -943,7 +1079,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.5 : 0.5,
       unit: 'L',
     ),
-
     'brown_sulfuric': ChemicalSetting(
       name: '硫酸',
       middle: isA ? 5.6 : 5.4,
@@ -952,7 +1087,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 3.0,
       unit: 'L',
     ),
-
     'brown_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: isA ? 3.4 : 3.5,
@@ -961,7 +1095,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 1.5,
       unit: 'L',
     ),
-
     'brown_cbba': ChemicalSetting(
       name: 'CBBA-A',
       middle: isA ? 4.8 : 5.5,
@@ -970,7 +1103,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 1.5,
       unit: 'L',
     ),
-
     'brown_copper': const ChemicalSetting(
       name: '銅離子',
       middle: null,
@@ -1034,10 +1166,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return double.tryParse(value.trim());
   }
 
-  // ==========================================================
-  // 濃度
-  // ==========================================================
-
   double? concentration(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
 
@@ -1057,10 +1185,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     return roundToTenth(number * setting.factor);
   }
-
-  // ==========================================================
-  // 添加量
-  // ==========================================================
 
   double? addAmount(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
@@ -1084,7 +1208,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final middle = roundToTenth(setting.middle!);
-
     final actual = roundToTenth(current);
 
     if (actual >= middle) {
@@ -1092,7 +1215,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final deficit = roundToTenth(middle - actual);
-
     final steps = (deficit * 10).round();
 
     if (steps <= 0) {
@@ -1146,10 +1268,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return formatNumber(roundToTenth(setting.middle!));
   }
 
-  // ==========================================================
-  // 咬食量
-  // ==========================================================
-
   double? biteAmount() {
     final before = parse(beforeWeightController.text);
 
@@ -1162,10 +1280,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return (before - after) / 100 * 21910;
   }
 
-  // ==========================================================
-  // 存檔
-  // ==========================================================
-
   void saveRecord() {
     final settings = getSettings(widget.lineName);
 
@@ -1173,7 +1287,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     for (final entry in settings.entries) {
       final key = entry.key;
-
       final value = controllers[key]!.text.trim();
 
       final concentrationValue = concentration(key, value);
@@ -1220,10 +1333,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  // ==========================================================
-  // 輸入欄
-  // ==========================================================
-
   Widget inputField(String key) {
     final setting = getSettings(widget.lineName)[key]!;
 
@@ -1244,10 +1353,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-
-  // ==========================================================
-  // 結果框
-  // ==========================================================
 
   Widget _resultBox(String title, String value) {
     return Container(
@@ -1270,15 +1375,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  // ==========================================================
-  // 化學品列
-  // ==========================================================
-
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
 
     final controller = controllers[key]!;
-
     final value = controller.text;
 
     return Card(
@@ -1357,10 +1457,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  // ==========================================================
-  // 槽位
-  // ==========================================================
-
   Widget tankCard({
     required String title,
     required String description,
@@ -1386,10 +1482,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-
-  // ==========================================================
-  // 咬食量區塊
-  // ==========================================================
 
   Widget biteCard() {
     final bite = biteAmount();
@@ -1488,10 +1580,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  // ==========================================================
-  // Build
-  // ==========================================================
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1517,9 +1605,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               Card(
                 color: const Color(0xFFEDE4DE),
                 child: const Padding(
@@ -1530,33 +1616,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               tankCard(
                 title: '第一槽｜酸洗槽',
                 description: '硫酸、雙氧水',
                 keys: const ['acid_sulfuric', 'acid_h2o2'],
               ),
-
               const SizedBox(height: 12),
-
               tankCard(
                 title: '第二槽｜清潔槽',
                 description: 'HL-II',
                 keys: const ['clean_hl2'],
               ),
-
               const SizedBox(height: 12),
-
               tankCard(
                 title: '第三槽｜預浸槽',
                 description: '雙氧水、CBBA-A',
                 keys: const ['pre_h2o2', 'pre_cbba'],
               ),
-
               const SizedBox(height: 12),
-
               tankCard(
                 title: '第四槽｜棕化槽',
                 description: '硫酸、雙氧水、CBBA-A、銅離子',
@@ -1567,13 +1645,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   'brown_copper',
                 ],
               ),
-
               const SizedBox(height: 12),
-
               biteCard(),
-
               const SizedBox(height: 15),
-
               SizedBox(
                 height: 58,
                 child: ElevatedButton.icon(
@@ -1585,9 +1659,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               SizedBox(
                 height: 52,
                 child: OutlinedButton.icon(
@@ -1603,9 +1675,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   label: const Text('查看化驗存檔'),
                 ),
               ),
-
               const SizedBox(height: 25),
-
               Center(
                 child: Text(
                   '${KLFConfig.appName} ${KLFConfig.version}',
@@ -1676,10 +1746,6 @@ class _RecordsPageState extends State<RecordsPage> {
     }
   }
 
-  // ==========================================================
-  // 只有管理者可以刪除
-  // ==========================================================
-
   void _requestAdminDelete(String id) {
     showDialog(
       context: context,
@@ -1697,7 +1763,6 @@ class _RecordsPageState extends State<RecordsPage> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-
                 _showAdminPassword(id);
               },
               child: const Text('管理者驗證'),
@@ -1750,7 +1815,6 @@ class _RecordsPageState extends State<RecordsPage> {
   void _verifyAdminDelete(String password, String id) {
     if (password == KLFConfig.adminPassword) {
       Navigator.pop(context);
-
       _deleteRecord(id);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1824,8 +1888,6 @@ class _RecordsPageState extends State<RecordsPage> {
 
                 final user = record['user'] ?? '';
 
-                final bite = record['biteAmount'] ?? '';
-
                 return Card(
                   child: ExpansionTile(
                     leading: CircleAvatar(
@@ -1846,11 +1908,6 @@ class _RecordsPageState extends State<RecordsPage> {
                             _openRecord(record);
                           },
                         ),
-
-                        // ==================================================
-                        // 刪除按鈕
-                        // 只有通過管理者密碼才可以刪除
-                        // ==================================================
                         IconButton(
                           tooltip: '管理者刪除',
                           icon: const Icon(
@@ -1876,10 +1933,6 @@ class _RecordsPageState extends State<RecordsPage> {
     );
   }
 
-  // ==========================================================
-  // 存檔結果完整顯示
-  // ==========================================================
-
   Widget _recordSummary(Map<String, dynamic> record) {
     final chemicals = Map<String, dynamic>.from(record['chemicals'] ?? {});
 
@@ -1893,7 +1946,6 @@ class _RecordsPageState extends State<RecordsPage> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
-
         ...chemicals.entries.map((entry) {
           final key = entry.key;
 
@@ -1953,9 +2005,7 @@ class _RecordsPageState extends State<RecordsPage> {
             ),
           );
         }),
-
         const SizedBox(height: 8),
-
         Card(
           color: const Color(0xFFEDE4DE),
           child: Padding(
@@ -2129,10 +2179,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     return (before - after) / 100 * 21910;
   }
 
-  // ==========================================================
-  // 儲存修改
-  // ==========================================================
-
   void save() {
     final settings = getSettings(lineName);
 
@@ -2199,10 +2245,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     Navigator.pop(context);
   }
 
-  // ==========================================================
-  // 編輯輸入
-  // ==========================================================
-
   Widget input(String key) {
     final setting = getSettings(lineName)[key]!;
 
@@ -2211,6 +2253,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
       child: TextField(
         controller: controllers[key],
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onChanged: (_) {
+          setState(() {});
+        },
         decoration: InputDecoration(
           labelText: setting.direct
               ? '${setting.name}｜濃度'
@@ -2220,10 +2265,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
       ),
     );
   }
-
-  // ==========================================================
-  // 編輯結果預覽
-  // ==========================================================
 
   Widget resultPreview(String key) {
     final setting = getSettings(lineName)[key]!;
@@ -2289,10 +2330,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     );
   }
 
-  // ==========================================================
-  // Build
-  // ==========================================================
-
   @override
   Widget build(BuildContext context) {
     final settings = getSettings(lineName);
@@ -2312,15 +2349,11 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 12),
-
           ...settings.keys.map(
             (key) => Column(children: [input(key), resultPreview(key)]),
           ),
-
           const SizedBox(height: 10),
-
           TextField(
             controller: beforeWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2333,9 +2366,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
-
           const SizedBox(height: 10),
-
           TextField(
             controller: afterWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2348,9 +2379,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
-
           const SizedBox(height: 15),
-
           Card(
             color: const Color(0xFFEDE4DE),
             child: Padding(
@@ -2377,9 +2406,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
-
           SizedBox(
             height: 55,
             child: ElevatedButton.icon(
@@ -2403,7 +2430,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
-
     afterWeightController.dispose();
 
     super.dispose();
