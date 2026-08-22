@@ -1,22 +1,21 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.2.1
+// 版本：v1.2.2
 //
 // 本次版本修改內容：
-// 1. 修正預浸槽 CBBA-A 添加量計算
-// 2. 預浸槽 CBBA-A：A 線每 0.1 濃度差添加 1 L
-// 3. 預浸槽 CBBA-A：B 線每 0.1 濃度差添加 0.5 L
-// 4. 棕化槽 CBBA-A 維持原本獨立添加規則
-// 5. 修正銅離子計算精度
-// 6. 銅離子 6.6 × 3.177 = 20.9682，顯示為 21.0
-// 7. 化驗結果依照化驗槽順序顯示
-// 8. 化驗結果區改為較緊湊的一頁式排版
-// 9. 化驗結果明確顯示槽別
-// 10. 查看化驗結果不再顯示 A 線／B 線選項
-// 11. 保留 Firebase Cloud Firestore 雲端儲存
-// 12. 保留所有授權手機共享化驗結果
+// 1. 化驗結果維持一頁式顯示
+// 2. 化驗結果不顯示 A 線／B 線選項
+// 3. 保留原有化驗計算公式
+// 4. 登入頁新增中文／泰文切換
+// 5. 化驗頁新增中文／泰文切換
+// 6. 尚未登入時不預先顯示紅色錯誤訊息
+// 7. 僅在輸入錯誤或按下登入後顯示錯誤
+// 8. 新增 A／B 線各槽體積
+// 9. A 線：酸洗 500 L、清潔 800 L、預浸 700 L、棕化 1400 L
+// 10. B 線：酸洗 246 L、清潔 582 L、預浸 440 L、棕化 1560 L
+// 11. 保留 Firebase Cloud Firestore
+// 12. 保留授權手機共享化驗結果
 // 13. 保留登入、Firebase 授權、管理者、QR Code
-// 14. 本版本暫不加入槽體積
 //
 // ============================================================
 
@@ -204,7 +203,7 @@ class FirebaseAnalysisManager {
 class KLFConfig {
   static const String appName = 'KLF-棕化';
 
-  static const String version = 'v1.2.1';
+  static const String version = 'v1.2.2';
 
   static const String adminPassword = '0';
 
@@ -241,6 +240,158 @@ class LocalStorageHelper {
     remove(KLFConfig.storageDeviceUser);
   }
 }
+
+// ============================================================
+// 語言
+// ============================================================
+
+enum KLFLanguage { chinese, thai }
+
+class KLFText {
+  static bool isThai(KLFLanguage language) => language == KLFLanguage.thai;
+
+  static String loginTitle(KLFLanguage language) =>
+      isThai(language) ? 'เข้าสู่ระบบ KLF-棕化' : 'KLF-棕化';
+
+  static String loginSubtitle(KLFLanguage language) =>
+      isThai(language) ? 'ระบบจัดการวิเคราะห์น้ำยาเคมี' : '棕化藥水分析管理系統';
+
+  static String authorizedName(KLFLanguage language) =>
+      isThai(language) ? 'ชื่อผู้ได้รับอนุญาต' : '授權人員名稱';
+
+  static String authorizedHint(KLFLanguage language) =>
+      isThai(language) ? 'กรุณากรอกชื่อที่ได้รับอนุญาต' : '請輸入已授權名稱';
+
+  static String login(KLFLanguage language) =>
+      isThai(language) ? 'เข้าสู่ระบบ' : '登入';
+
+  static String firstLoginHint(KLFLanguage language) => isThai(language)
+      ? 'การเข้าสู่ระบบครั้งแรกต้องใช้ชื่อที่ได้รับอนุญาต'
+      : '首次登入需輸入已授權名稱登入';
+
+  static String enterAuthorizedName(KLFLanguage language) =>
+      isThai(language) ? 'กรุณากรอกชื่อที่ได้รับอนุญาต' : '請輸入授權名稱';
+
+  static String unauthorized(KLFLanguage language) => isThai(language)
+      ? 'ชื่อไม่ได้รับอนุญาต ไม่สามารถเข้าสู่ระบบได้'
+      : '名稱未授權，無法登入';
+
+  static String firebaseError(KLFLanguage language) => isThai(language)
+      ? 'ไม่สามารถเชื่อมต่อ Firebase กรุณาตรวจสอบเครือข่าย'
+      : '無法連線 Firebase，請確認網路連線';
+
+  static String languageButton(KLFLanguage language) =>
+      isThai(language) ? '中文' : 'ไทย';
+
+  static String adminLogin(KLFLanguage language) =>
+      isThai(language) ? 'เข้าสู่ระบบผู้ดูแล' : '管理者登入';
+
+  static String analysisTitle(KLFLanguage language, String line) =>
+      isThai(language) ? '$line｜วิเคราะห์น้ำยา' : '$line｜藥水化驗';
+
+  static String analyst(KLFLanguage language, String name) =>
+      isThai(language) ? 'ผู้วิเคราะห์: $name' : '化驗人員：$name';
+
+  static String bite(KLFLanguage language) =>
+      isThai(language) ? 'ปริมาณการกัด' : '咬食量';
+
+  static String result(KLFLanguage language) =>
+      isThai(language) ? 'ผลการวิเคราะห์' : '化驗結果';
+
+  static String concentration(KLFLanguage language) =>
+      isThai(language) ? 'ความเข้มข้น' : '濃度';
+
+  static String input(KLFLanguage language) =>
+      isThai(language) ? 'ค่าที่ป้อน' : '輸入';
+
+  static String middle(KLFLanguage language) =>
+      isThai(language) ? 'ค่ากลาง' : '中值';
+
+  static String addAmount(KLFLanguage language) =>
+      isThai(language) ? 'ปริมาณที่ต้องเติม' : '需添加量';
+
+  static String noNeedAdd(KLFLanguage language) =>
+      isThai(language) ? 'ไม่ต้องเติม' : '不用添加';
+
+  static String titration(KLFLanguage language) =>
+      isThai(language) ? 'ค่าการไทเทรต' : '滴定值';
+
+  static String directConcentration(KLFLanguage language) =>
+      isThai(language) ? 'ความเข้มข้นโดยตรง' : '濃度';
+
+  static String enterTitration(KLFLanguage language) =>
+      isThai(language) ? 'กรอกค่าการไทเทรต' : '輸入滴定值';
+
+  static String enterConcentration(KLFLanguage language) =>
+      isThai(language) ? 'กรอกความเข้มข้นโดยตรง' : '直接輸入濃度';
+
+  static String unbrownedWeight(KLFLanguage language) =>
+      isThai(language) ? 'น้ำหนักก่อนบราวนิ่ง' : '未棕化重量';
+
+  static String brownedWeight(KLFLanguage language) =>
+      isThai(language) ? 'น้ำหนักหลังบราวนิ่ง' : '已棕化重量';
+
+  static String biteDescription(KLFLanguage language) => isThai(language)
+      ? 'กรอกน้ำหนักก่อนและหลังบราวนิ่ง ระบบจะคำนวณอัตโนมัติ'
+      : '未棕化重量、已棕化重量由化驗人員輸入，系統自動計算。';
+
+  static String biteFormula(KLFLanguage language) => isThai(language)
+      ? 'สูตร: (น้ำหนักก่อนบราวนิ่ง－น้ำหนักหลังบราวนิ่ง) ÷ 100 × 21910'
+      : '公式：(未棕化重量－已棕化重量) ÷ 100 × 21910';
+
+  static String save(KLFLanguage language) =>
+      isThai(language) ? 'วิเคราะห์เสร็จและบันทึก' : '化驗完成並存檔';
+
+  static String saving(KLFLanguage language) =>
+      isThai(language) ? 'กำลังบันทึกบนคลาวด์...' : '雲端儲存中...';
+
+  static String records(KLFLanguage language) =>
+      isThai(language) ? 'ประวัติการวิเคราะห์' : '查看共享化驗存檔';
+
+  static String firstTank(KLFLanguage language) =>
+      isThai(language) ? 'ถังที่ 1｜ถังกรดล้าง' : '第一槽｜酸洗槽';
+
+  static String secondTank(KLFLanguage language) =>
+      isThai(language) ? 'ถังที่ 2｜ถังทำความสะอาด' : '第二槽｜清潔槽';
+
+  static String thirdTank(KLFLanguage language) =>
+      isThai(language) ? 'ถังที่ 3｜ถังพรีดิป' : '第三槽｜預浸槽';
+
+  static String fourthTank(KLFLanguage language) =>
+      isThai(language) ? 'ถังที่ 4｜ถังบราวนิ่ง' : '第四槽｜棕化槽';
+
+  static String acidDescription(KLFLanguage language) =>
+      isThai(language) ? 'กรดซัลฟิวริก, ไฮโดรเจนเปอร์ออกไซด์' : '硫酸、雙氧水';
+
+  static String cleanDescription(KLFLanguage language) =>
+      isThai(language) ? 'HL-II' : 'HL-II';
+
+  static String preDescription(KLFLanguage language) =>
+      isThai(language) ? 'ไฮโดรเจนเปอร์ออกไซด์, CBBA-A' : '雙氧水、CBBA-A';
+
+  static String brownDescription(KLFLanguage language) => isThai(language)
+      ? 'กรดซัลฟิวริก, ไฮโดรเจนเปอร์ออกไซด์, CBBA-A, ทองแดง'
+      : '硫酸、雙氧水、CBBA-A、銅離子';
+
+  static String tankVolume(KLFLanguage language) =>
+      isThai(language) ? 'ปริมาตรถัง' : '槽體積';
+
+  static String liters(KLFLanguage language, double value) => isThai(language)
+      ? '${formatNumber(value)} L'
+      : '${formatNumber(value)} L';
+
+  static String savedSuccess(KLFLanguage language) => isThai(language)
+      ? 'บันทึกข้อมูลบนคลาวด์แล้ว โทรศัพท์ที่ได้รับอนุญาตทั้งหมดสามารถดูได้'
+      : '化驗資料已儲存至雲端，所有授權手機皆可查看';
+
+  static String saveFailed(KLFLanguage language) => isThai(language)
+      ? 'บันทึกบนคลาวด์ไม่สำเร็จ กรุณาตรวจสอบ Firebase'
+      : '雲端存檔失敗，請確認 Firebase 連線與權限';
+
+  static String formatNumber(double value) => value.toStringAsFixed(1);
+}
+
+String formatNumber(double value) => value.toStringAsFixed(1);
 
 // ============================================================
 // App
@@ -337,12 +488,27 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _loading = false;
 
+  KLFLanguage _language = KLFLanguage.chinese;
+
+  void _toggleLanguage() {
+    setState(() {
+      _language = KLFText.isThai(_language)
+          ? KLFLanguage.chinese
+          : KLFLanguage.thai;
+
+      // 切換語言時清除錯誤訊息。
+      _errorMessage = '';
+    });
+  }
+
   Future<void> _login() async {
     final name = _nameController.text.trim();
 
+    // 尚未按登入以前不顯示任何錯誤。
+    // 只有使用者實際嘗試登入才提醒。
     if (name.isEmpty) {
       setState(() {
-        _errorMessage = '請輸入授權名稱';
+        _errorMessage = KLFText.enterAuthorizedName(_language);
       });
 
       return;
@@ -367,14 +533,14 @@ class _LoginPageState extends State<LoginPage> {
         );
       } else {
         setState(() {
-          _errorMessage = '名稱未授權，無法登入';
+          _errorMessage = KLFText.unauthorized(_language);
         });
       }
     } catch (_) {
       if (!mounted) return;
 
       setState(() {
-        _errorMessage = '無法連線 Firebase，請確認網路連線';
+        _errorMessage = KLFText.firebaseError(_language);
       });
     } finally {
       if (mounted) {
@@ -400,6 +566,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final language = _language;
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -413,23 +581,36 @@ class _LoginPageState extends State<LoginPage> {
                   padding: const EdgeInsets.all(30),
                   child: Column(
                     children: [
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: OutlinedButton.icon(
+                          onPressed: _toggleLanguage,
+                          icon: const Icon(Icons.language, size: 18),
+                          label: Text(KLFText.languageButton(language)),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
                       const Icon(
                         Icons.science_outlined,
                         size: 70,
                         color: Color(0xFF6B3F22),
                       ),
                       const SizedBox(height: 15),
-                      const Text(
-                        'KLF-棕化',
-                        style: TextStyle(
+                      Text(
+                        KLFText.loginTitle(language),
+                        style: const TextStyle(
                           fontSize: 30,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        '棕化藥水分析管理系統',
-                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      Text(
+                        KLFText.loginSubtitle(language),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 16,
+                        ),
                       ),
                       const SizedBox(height: 35),
                       TextField(
@@ -438,8 +619,8 @@ class _LoginPageState extends State<LoginPage> {
                         onSubmitted: (_) => _login(),
                         enabled: !_loading,
                         decoration: InputDecoration(
-                          labelText: '授權人員名稱',
-                          hintText: '請輸入已授權名稱',
+                          labelText: KLFText.authorizedName(language),
+                          hintText: KLFText.authorizedHint(language),
                           prefixIcon: const Icon(Icons.person_outline),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -460,18 +641,20 @@ class _LoginPageState extends State<LoginPage> {
                                     strokeWidth: 2.5,
                                   ),
                                 )
-                              : const Text(
-                                  '登入',
-                                  style: TextStyle(fontSize: 18),
+                              : Text(
+                                  KLFText.login(language),
+                                  style: const TextStyle(fontSize: 18),
                                 ),
                         ),
                       ),
                       const SizedBox(height: 15),
-                      const Text(
-                        '首次登入需輸入已授權名稱登入',
+                      Text(
+                        KLFText.firstLoginHint(language),
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
+                        style: const TextStyle(color: Colors.grey),
                       ),
+
+                      // 只有按登入後發生錯誤才顯示。
                       if (_errorMessage.isNotEmpty) ...[
                         const SizedBox(height: 15),
                         Text(
@@ -480,11 +663,12 @@ class _LoginPageState extends State<LoginPage> {
                           style: const TextStyle(color: Colors.red),
                         ),
                       ],
+
                       const SizedBox(height: 25),
                       TextButton.icon(
                         onPressed: _openAdminLogin,
                         icon: const Icon(Icons.admin_panel_settings_outlined),
-                        label: const Text('管理者登入'),
+                        label: Text(KLFText.adminLogin(language)),
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -625,7 +809,6 @@ class _AdminPageState extends State<AdminPage> {
   List<String> _users = [];
 
   bool _loading = true;
-
   bool _adding = false;
 
   @override
@@ -1244,7 +1427,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
-
     'acid_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: 0.5,
@@ -1253,7 +1435,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 0.5,
       unit: 'L',
     ),
-
     'clean_hl2': ChemicalSetting(
       name: 'HL-II',
       middle: isA ? 7.0 : 3.7,
@@ -1262,7 +1443,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
-
     'pre_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: isA ? 2.0 : 1.5,
@@ -1271,14 +1451,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
-
-    // --------------------------------------------------------
-    // 預浸槽 CBBA-A
-    //
-    // A 線：每 0.1 濃度差添加 1 L
-    // B 線：每 0.1 濃度差添加 0.5 L
-    //
-    // --------------------------------------------------------
     'pre_cbba': ChemicalSetting(
       name: 'CBBA-A',
       middle: isA ? 1.5 : 2.5,
@@ -1287,7 +1459,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
-
     'brown_sulfuric': ChemicalSetting(
       name: '硫酸',
       middle: isA ? 5.6 : 5.4,
@@ -1296,7 +1467,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 3.0,
       unit: 'L',
     ),
-
     'brown_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: isA ? 3.4 : 3.5,
@@ -1305,14 +1475,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 1.5,
       unit: 'L',
     ),
-
-    // --------------------------------------------------------
-    // 棕化槽 CBBA-A
-    //
-    // 保留原本獨立規則：
-    // A / B 線每 0.1 濃度差添加 1.5 L
-    //
-    // --------------------------------------------------------
     'brown_cbba': ChemicalSetting(
       name: 'CBBA-A',
       middle: isA ? 4.8 : 5.5,
@@ -1321,18 +1483,6 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 1.5,
       unit: 'L',
     ),
-
-    // --------------------------------------------------------
-    // 銅離子
-    //
-    // 輸入值 × 3.177
-    //
-    // 例如：
-    // 6.6 × 3.177 = 20.9682
-    // 顯示到小數第 1 位 = 21.0
-    //
-    // 不在計算過程中先把結果截成 20.9。
-    // --------------------------------------------------------
     'brown_copper': const ChemicalSetting(
       name: '銅離子',
       middle: null,
@@ -1345,15 +1495,24 @@ Map<String, ChemicalSetting> getSettings(String line) {
 }
 
 // ============================================================
+// 槽體積
+// ============================================================
+
+const Map<String, Map<String, double>> tankVolumes = {
+  'A線': {'acid': 500, 'clean': 800, 'pre': 700, 'brown': 1400},
+  'B線': {'acid': 246, 'clean': 582, 'pre': 440, 'brown': 1560},
+};
+
+double getTankVolume(String line, String tank) {
+  return tankVolumes[line]?[tank] ?? 0;
+}
+
+// ============================================================
 // 數值處理
 // ============================================================
 
 double roundToTenth(double value) {
   return (value * 10).round() / 10;
-}
-
-String formatNumber(double value) {
-  return value.toStringAsFixed(1);
 }
 
 // ============================================================
@@ -1377,21 +1536,25 @@ const List<Map<String, dynamic>> tankOrder = [
     'title': '第一槽｜酸洗槽',
     'description': '硫酸、雙氧水',
     'keys': ['acid_sulfuric', 'acid_h2o2'],
+    'volumeKey': 'acid',
   },
   {
     'title': '第二槽｜清潔槽',
     'description': 'HL-II',
     'keys': ['clean_hl2'],
+    'volumeKey': 'clean',
   },
   {
     'title': '第三槽｜預浸槽',
     'description': '雙氧水、CBBA-A',
     'keys': ['pre_h2o2', 'pre_cbba'],
+    'volumeKey': 'pre',
   },
   {
     'title': '第四槽｜棕化槽',
     'description': '硫酸、雙氧水、CBBA-A、銅離子',
     'keys': ['brown_sulfuric', 'brown_h2o2', 'brown_cbba', 'brown_copper'],
+    'volumeKey': 'brown',
   },
 ];
 
@@ -1422,6 +1585,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   bool _saving = false;
 
+  KLFLanguage _language = KLFLanguage.chinese;
+
   @override
   void initState() {
     super.initState();
@@ -1436,10 +1601,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
   double? parse(String value) {
     return double.tryParse(value.trim());
   }
-
-  // ----------------------------------------------------------
-  // 化驗濃度計算
-  // ----------------------------------------------------------
 
   double? concentration(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
@@ -1460,18 +1621,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final calculated = number * setting.factor;
 
-    // 銅離子特別保留完整計算精度，
-    // 最後顯示時才取小數第 1 位。
     if (key == 'brown_copper') {
       return calculated;
     }
 
     return roundToTenth(calculated);
   }
-
-  // ----------------------------------------------------------
-  // 添加量計算
-  // ----------------------------------------------------------
 
   double? addAmount(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
@@ -1519,7 +1674,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     if (amount <= 0) {
-      return '不用添加';
+      return KLFText.noNeedAdd(_language);
     }
 
     return '${formatNumber(amount)} ${setting.unit}';
@@ -1543,7 +1698,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     if (setting.middle == null) {
-      return '無中值';
+      return _language == KLFLanguage.thai ? 'ไม่มีค่ากลาง' : '無中值';
     }
 
     return formatNumber(roundToTenth(setting.middle!));
@@ -1560,10 +1715,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     return (before - after) / 100 * 21910;
   }
-
-  // ----------------------------------------------------------
-  // 雲端存檔
-  // ----------------------------------------------------------
 
   Future<void> saveRecord() async {
     if (_saving) {
@@ -1617,8 +1768,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('化驗資料已儲存至雲端，所有授權手機皆可查看'),
+        SnackBar(
+          content: Text(KLFText.savedSuccess(_language)),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -1635,8 +1786,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('雲端存檔失敗，請確認 Firebase 連線與權限'),
+        SnackBar(
+          content: Text(KLFText.saveFailed(_language)),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -1654,6 +1805,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final controller = controllers[key]!;
 
+    final isThai = _language == KLFLanguage.thai;
+
     return SizedBox(
       height: 48,
       child: TextField(
@@ -1669,9 +1822,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
             vertical: 8,
           ),
           labelText: setting.direct
-              ? '${setting.name}｜濃度'
-              : '${setting.name}｜滴定值',
-          hintText: setting.direct ? '直接輸入濃度' : '輸入滴定值',
+              ? '${setting.name}｜${KLFText.directConcentration(_language)}'
+              : '${setting.name}｜${KLFText.titration(_language)}',
+          hintText: setting.direct
+              ? KLFText.enterConcentration(_language)
+              : KLFText.enterTitration(_language),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
@@ -1681,8 +1836,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
   Widget _resultBox(String title, String value) {
     Color? valueColor;
 
-    if (title == '需添加量') {
-      if (value == '不用添加') {
+    if (title == KLFText.addAmount(_language)) {
+      if (value == KLFText.noNeedAdd(_language)) {
         valueColor = Colors.green;
       } else if (value != '-') {
         valueColor = Colors.red;
@@ -1751,17 +1906,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   const SizedBox(height: 5),
                   Row(
                     children: [
-                      Expanded(child: _resultBox('中值', displayMiddle(key))),
+                      Expanded(
+                        child: _resultBox(
+                          KLFText.middle(_language),
+                          displayMiddle(key),
+                        ),
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: _resultBox(
-                          '濃度',
+                          KLFText.concentration(_language),
                           displayConcentration(key, value),
                         ),
                       ),
                       const SizedBox(width: 4),
                       Expanded(
-                        child: _resultBox('需添加量', displayAddAmount(key, value)),
+                        child: _resultBox(
+                          KLFText.addAmount(_language),
+                          displayAddAmount(key, value),
+                        ),
                       ),
                     ],
                   ),
@@ -1783,14 +1946,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 ),
                 Expanded(flex: 3, child: inputField(key)),
                 const SizedBox(width: 5),
-                Expanded(child: _resultBox('中值', displayMiddle(key))),
-                const SizedBox(width: 5),
                 Expanded(
-                  child: _resultBox('濃度', displayConcentration(key, value)),
+                  child: _resultBox(
+                    KLFText.middle(_language),
+                    displayMiddle(key),
+                  ),
                 ),
                 const SizedBox(width: 5),
                 Expanded(
-                  child: _resultBox('需添加量', displayAddAmount(key, value)),
+                  child: _resultBox(
+                    KLFText.concentration(_language),
+                    displayConcentration(key, value),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: _resultBox(
+                    KLFText.addAmount(_language),
+                    displayAddAmount(key, value),
+                  ),
                 ),
               ],
             );
@@ -1804,7 +1978,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     required String title,
     required String description,
     required List<String> keys,
+    required String volumeKey,
   }) {
+    final volume = getTankVolume(widget.lineName, volumeKey);
+
     return Card(
       elevation: 2,
       child: Padding(
@@ -1812,9 +1989,36 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE4DE),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(
+                    '${KLFText.tankVolume(_language)}：${formatNumber(volume)} L',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 1),
             Text(description, style: const TextStyle(color: Colors.grey)),
@@ -1835,14 +2039,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '咬食量',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              KLFText.bite(_language),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 2),
-            const Text(
-              '未棕化重量、已棕化重量由化驗人員輸入，系統自動計算。',
-              style: TextStyle(color: Colors.grey),
+            Text(
+              KLFText.biteDescription(_language),
+              style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 8),
             Row(
@@ -1864,7 +2068,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           horizontal: 10,
                           vertical: 8,
                         ),
-                        labelText: '未棕化重量',
+                        labelText: KLFText.unbrownedWeight(_language),
                         suffixText: 'g',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -1891,7 +2095,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                           horizontal: 10,
                           vertical: 8,
                         ),
-                        labelText: '已棕化重量',
+                        labelText: KLFText.brownedWeight(_language),
                         suffixText: 'g',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -1912,10 +2116,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
               ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '咬食量',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      KLFText.bite(_language),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                   Text(
@@ -1929,9 +2133,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
-              '公式：(未棕化重量－已棕化重量) ÷ 100 × 21910',
-              style: TextStyle(color: Colors.grey, fontSize: 11),
+            Text(
+              KLFText.biteFormula(_language),
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
             ),
           ],
         ),
@@ -1939,10 +2143,34 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
+  void _toggleLanguage() {
+    setState(() {
+      _language = KLFText.isThai(_language)
+          ? KLFLanguage.chinese
+          : KLFLanguage.thai;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final language = _language;
+
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.lineName}｜藥水化驗')),
+      appBar: AppBar(
+        title: Text(KLFText.analysisTitle(language, widget.lineName)),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Center(
+              child: OutlinedButton.icon(
+                onPressed: _toggleLanguage,
+                icon: const Icon(Icons.language, size: 18),
+                label: Text(KLFText.languageButton(language)),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
@@ -1960,7 +2188,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       const Icon(Icons.person_outline, size: 20),
                       const SizedBox(width: 7),
                       Text(
-                        '化驗人員：${widget.userName}',
+                        KLFText.analyst(language, widget.userName),
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -1971,32 +2199,36 @@ class _AnalysisPageState extends State<AnalysisPage> {
               biteCard(),
               const SizedBox(height: 7),
               tankCard(
-                title: '第一槽｜酸洗槽',
-                description: '硫酸、雙氧水',
+                title: KLFText.firstTank(language),
+                description: KLFText.acidDescription(language),
                 keys: const ['acid_sulfuric', 'acid_h2o2'],
+                volumeKey: 'acid',
               ),
               const SizedBox(height: 7),
               tankCard(
-                title: '第二槽｜清潔槽',
-                description: 'HL-II',
+                title: KLFText.secondTank(language),
+                description: KLFText.cleanDescription(language),
                 keys: const ['clean_hl2'],
+                volumeKey: 'clean',
               ),
               const SizedBox(height: 7),
               tankCard(
-                title: '第三槽｜預浸槽',
-                description: '雙氧水、CBBA-A',
+                title: KLFText.thirdTank(language),
+                description: KLFText.preDescription(language),
                 keys: const ['pre_h2o2', 'pre_cbba'],
+                volumeKey: 'pre',
               ),
               const SizedBox(height: 7),
               tankCard(
-                title: '第四槽｜棕化槽',
-                description: '硫酸、雙氧水、CBBA-A、銅離子',
+                title: KLFText.fourthTank(language),
+                description: KLFText.brownDescription(language),
                 keys: const [
                   'brown_sulfuric',
                   'brown_h2o2',
                   'brown_cbba',
                   'brown_copper',
                 ],
+                volumeKey: 'brown',
               ),
               const SizedBox(height: 10),
               SizedBox(
@@ -2011,7 +2243,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         )
                       : const Icon(Icons.cloud_upload_outlined),
                   label: Text(
-                    _saving ? '雲端儲存中...' : '化驗完成並存檔',
+                    _saving ? KLFText.saving(language) : KLFText.save(language),
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
@@ -2032,7 +2264,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     );
                   },
                   icon: const Icon(Icons.folder_open),
-                  label: const Text('查看共享化驗存檔'),
+                  label: Text(KLFText.records(language)),
                 ),
               ),
               const SizedBox(height: 15),
@@ -2179,7 +2411,10 @@ class _RecordsPageState extends State<RecordsPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('刪除雲端存檔'),
-        content: const Text('確定要永久刪除這筆化驗資料嗎？\n\n刪除後所有手機都會同步消失。'),
+        content: const Text(
+          '確定要永久刪除這筆化驗資料嗎？\n\n'
+          '刪除後所有手機都會同步消失。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -2383,23 +2618,6 @@ class _RecordsPageState extends State<RecordsPage> {
     );
   }
 
-  // ==========================================================
-  // 化驗結果
-  //
-  // 固定順序：
-  // 咬食量
-  // ↓
-  // 第一槽｜酸洗槽
-  // ↓
-  // 第二槽｜清潔槽
-  // ↓
-  // 第三槽｜預浸槽
-  // ↓
-  // 第四槽｜棕化槽
-  //
-  // 本區採緊湊一頁式結果排版。
-  // ==========================================================
-
   Widget _recordSummary(Map<String, dynamic> record) {
     final chemicals = Map<String, dynamic>.from(record['chemicals'] ?? {});
 
@@ -2415,10 +2633,6 @@ class _RecordsPageState extends State<RecordsPage> {
       children: [
         const Divider(height: 1),
         const SizedBox(height: 7),
-
-        // ------------------------------------------------------
-        // 咬食量
-        // ------------------------------------------------------
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -2444,19 +2658,12 @@ class _RecordsPageState extends State<RecordsPage> {
             ],
           ),
         ),
-
         const SizedBox(height: 8),
-
         const Text(
           '化驗結果',
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
         ),
-
         const SizedBox(height: 5),
-
-        // ------------------------------------------------------
-        // 四個槽依固定化驗順序顯示
-        // ------------------------------------------------------
         ...tankOrder.map((tank) {
           final title = tank['title'].toString();
 
@@ -2495,10 +2702,6 @@ class _RecordsPageState extends State<RecordsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --------------------------------------------------
-            // 槽別
-            // --------------------------------------------------
-
             Row(
               children: [
                 Expanded(
@@ -2516,12 +2719,7 @@ class _RecordsPageState extends State<RecordsPage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 4),
-
-            // --------------------------------------------------
-            // 化驗結果
-            // --------------------------------------------------
             ...keys.map((key) {
               final raw = chemicals[key];
 
@@ -2554,11 +2752,6 @@ class _RecordsPageState extends State<RecordsPage> {
 
     final addAmount = data['addAmount']?.toString() ?? '';
 
-    // ----------------------------------------------------------
-    // 舊資料如果銅離子曾經被錯誤存成 20.9，
-    // 這裡依原始輸入重新計算，避免歷史結果繼續顯示錯誤。
-    // ----------------------------------------------------------
-
     if (key == 'brown_copper') {
       final inputNumber = double.tryParse(input.trim());
 
@@ -2584,7 +2777,6 @@ class _RecordsPageState extends State<RecordsPage> {
       ),
       child: Row(
         children: [
-          // 化學品名稱
           Expanded(
             flex: 2,
             child: Text(
@@ -2592,14 +2784,10 @@ class _RecordsPageState extends State<RecordsPage> {
               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
             ),
           ),
-
-          // 輸入
           Expanded(
             flex: 2,
             child: _smallResult('輸入', input.isEmpty ? '-' : input),
           ),
-
-          // 中值
           Expanded(
             flex: 2,
             child: _smallResult(
@@ -2607,8 +2795,6 @@ class _RecordsPageState extends State<RecordsPage> {
               setting.middle == null ? '無中值' : formatNumber(setting.middle!),
             ),
           ),
-
-          // 濃度
           Expanded(
             flex: 2,
             child: _smallResult(
@@ -2616,8 +2802,6 @@ class _RecordsPageState extends State<RecordsPage> {
               concentration.isEmpty ? '-' : concentration,
             ),
           ),
-
-          // 添加量
           Expanded(
             flex: 3,
             child: _smallResult(
@@ -3135,6 +3319,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
+
     afterWeightController.dispose();
 
     super.dispose();
@@ -3142,20 +3327,17 @@ class _RecordEditPageState extends State<RecordEditPage> {
 }
 
 // ============================================================
-// v1.2.1 完
-// ============================================================
+// v1.2.2 完
 //
 // 本版本完成：
-// 1. 預浸 CBBA-A 添加量修正
-// 2. A 線每 0.1 添加 1 L
-// 3. B 線每 0.1 添加 0.5 L
-// 4. 棕化 CBBA-A 保持原本獨立規則
-// 5. 銅離子計算精度修正
-// 6. 6.6 × 3.177 顯示 21.0
-// 7. 化驗結果依照槽別及化驗順序排列
-// 8. 化驗結果區改為緊湊一頁式排版
-// 9. 化驗結果顯示槽別
-// 10. 移除查看結果頁面的 A/B 線選項
-// 11. 槽體積本版本暫不加入
+// 1. 化驗結果維持一頁式
+// 2. 化驗結果不顯示 A/B 線選項
+// 3. 保留原有化驗計算公式
+// 4. 登入頁中文／泰文切換
+// 5. 化驗頁中文／泰文切換
+// 6. 登入前不顯示紅色錯誤
+// 7. 輸入錯誤或按登入後才顯示錯誤
+// 8. A 線槽體積：500 / 800 / 700 / 1400 L
+// 9. B 線槽體積：246 / 582 / 440 / 1560 L
 //
 // ============================================================
