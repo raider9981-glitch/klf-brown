@@ -1,6 +1,6 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.2.3
+// 版本：v1.2.5（自動更新版）
 //
 // 本次版本修改內容：
 // 1. 中文／泰文改為全系統語言切換
@@ -28,6 +28,7 @@
 //
 // ============================================================
 
+import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -40,7 +41,45 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await KLFVersionUpdater.checkForUpdate();
   runApp(const KLFApp());
+}
+
+// ============================================================
+// 網頁版本自動更新
+// ============================================================
+
+class KLFVersionUpdater {
+  static Future<void> checkForUpdate() async {
+    try {
+      final remoteUri = Uri.base
+          .resolve('version.json')
+          .replace(
+            queryParameters: {
+              '_': DateTime.now().millisecondsSinceEpoch.toString(),
+            },
+          );
+
+      final response = await html.HttpRequest.getString(
+        remoteUri.toString(),
+      ).timeout(const Duration(seconds: 5));
+      final data = jsonDecode(response) as Map<String, dynamic>;
+      final remoteVersion = data['version']?.toString().trim() ?? '';
+      final currentVersion = KLFConfig.version.replaceFirst('v', '');
+
+      if (remoteVersion.isEmpty || remoteVersion == currentVersion) return;
+
+      // 避免網路暫時仍回傳舊 JavaScript 時反覆重新載入。
+      final updateKey = 'klf_update_attempt_$remoteVersion';
+
+      if (html.window.sessionStorage[updateKey] == 'done') return;
+
+      html.window.sessionStorage[updateKey] = 'done';
+      html.window.location.reload();
+    } catch (_) {
+      // 離線或版本檔暫時不可用時，繼續使用目前已載入的版本。
+    }
+  }
 }
 
 // ============================================================
@@ -187,7 +226,7 @@ class FirebaseAnalysisManager {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.2.3';
+  static const String version = 'v1.2.5';
   static const String adminPassword = '0';
 
   static const String websiteUrl =
@@ -2604,6 +2643,23 @@ class _RecordsPageState extends State<RecordsPage> {
     );
   }
 
+  void _openRecordDetail(Map<String, dynamic> record) {
+    final id = record['id']?.toString() ?? '';
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecordDetailPage(
+          record: record,
+          userName: widget.userName,
+          summaryBuilder: () => _recordSummary(record),
+          onEdit: () => _openRecord(record),
+          onDelete: id.isEmpty ? null : () => _requestAdminDelete(id),
+        ),
+      ),
+    );
+  }
+
   void _requestAdminDelete(String id) {
     showDialog(
       context: context,
@@ -2839,10 +2895,8 @@ class _RecordsPageState extends State<RecordsPage> {
 
                   final user = record['user'] ?? '';
 
-                  final id = record['id']?.toString() ?? '';
-
                   return Card(
-                    child: ExpansionTile(
+                    child: ListTile(
                       leading: CircleAvatar(
                         child: Text(line.toString().replaceAll('線', '')),
                       ),
@@ -2852,32 +2906,8 @@ class _RecordsPageState extends State<RecordsPage> {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Text(KLFText.analyst(user.toString())),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            tooltip: KLFText.viewEdit(),
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _openRecord(record),
-                          ),
-                          IconButton(
-                            tooltip: KLFText.adminDelete(),
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.red,
-                            ),
-                            onPressed: id.isEmpty
-                                ? null
-                                : () => _requestAdminDelete(id),
-                          ),
-                        ],
-                      ),
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                          child: _recordSummary(record),
-                        ),
-                      ],
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _openRecordDetail(record),
                     ),
                   );
                 },
@@ -2918,7 +2948,7 @@ class _RecordsPageState extends State<RecordsPage> {
                   KLFText.bite(),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                    fontSize: 18,
                   ),
                 ),
               ),
@@ -2926,7 +2956,7 @@ class _RecordsPageState extends State<RecordsPage> {
                 bite,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 15,
+                  fontSize: 22,
                 ),
               ),
             ],
@@ -2935,7 +2965,7 @@ class _RecordsPageState extends State<RecordsPage> {
         const SizedBox(height: 8),
         Text(
           KLFText.result(),
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 5),
         ...tankOrder.map(
@@ -2976,14 +3006,14 @@ class _RecordsPageState extends State<RecordsPage> {
                   child: Text(
                     tankTitle(title),
                     style: const TextStyle(
-                      fontSize: 13,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
                 Text(
                   tankDescription(description),
-                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
@@ -3038,47 +3068,48 @@ class _RecordsPageState extends State<RecordsPage> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFFF8F8F8),
         borderRadius: BorderRadius.circular(5),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              chemicalName(setting.name),
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-            ),
+          Text(
+            chemicalName(setting.name),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
           ),
-          Expanded(
-            flex: 2,
-            child: smallResult(KLFText.input(), input.isEmpty ? '-' : input),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: smallResult(
+                  KLFText.input(),
+                  input.isEmpty ? '-' : input,
+                ),
+              ),
+              Expanded(
+                child: smallResult(
+                  KLFText.middle(),
+                  setting.middle == null
+                      ? KLFGlobalLanguage.t('無中值', 'ไม่มีค่ากลาง')
+                      : formatNumber(setting.middle!),
+                ),
+              ),
+              Expanded(
+                child: smallResult(
+                  KLFText.concentration(),
+                  concentration.isEmpty ? '-' : concentration,
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            flex: 2,
-            child: smallResult(
-              KLFText.middle(),
-              setting.middle == null
-                  ? KLFGlobalLanguage.t('無中值', 'ไม่มีค่ากลาง')
-                  : formatNumber(setting.middle!),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: smallResult(
-              KLFText.concentration(),
-              concentration.isEmpty ? '-' : concentration,
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: smallResult(
-              KLFText.addAmount(),
-              add.isEmpty ? '-' : (add == '不用添加' ? KLFText.noNeedAdd() : add),
-              valueColor: addColor,
-            ),
+          const SizedBox(height: 8),
+          smallResult(
+            KLFText.addAmount(),
+            add.isEmpty ? '-' : (add == '不用添加' ? KLFText.noNeedAdd() : add),
+            valueColor: addColor,
           ),
         ],
       ),
@@ -3095,7 +3126,7 @@ class _RecordsPageState extends State<RecordsPage> {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.grey, fontSize: 8),
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
           ),
           const SizedBox(height: 1),
           Text(
@@ -3104,11 +3135,71 @@ class _RecordsPageState extends State<RecordsPage> {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 10,
+              fontSize: 15,
               color: valueColor,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// 化驗結果詳情
+// ============================================================
+
+class RecordDetailPage extends StatelessWidget {
+  final Map<String, dynamic> record;
+  final String userName;
+  final Widget Function() summaryBuilder;
+  final VoidCallback onEdit;
+  final VoidCallback? onDelete;
+
+  const RecordDetailPage({
+    super.key,
+    required this.record,
+    required this.userName,
+    required this.summaryBuilder,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final line = record['line']?.toString() ?? '';
+    final analyst = record['user']?.toString() ?? '';
+
+    return ValueListenableBuilder<KLFLanguage>(
+      valueListenable: KLFGlobalLanguage.notifier,
+      builder: (_, __, ___) => Scaffold(
+        appBar: AppBar(
+          title: Text('$line｜${KLFText.result()}'),
+          actions: [
+            IconButton(
+              tooltip: KLFText.viewEdit(),
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: onEdit,
+            ),
+            IconButton(
+              tooltip: KLFText.adminDelete(),
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: onDelete,
+            ),
+            const LanguageButton(),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              KLFText.analyst(analyst),
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            summaryBuilder(),
+          ],
+        ),
       ),
     );
   }
@@ -3577,7 +3668,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
 }
 
 // ============================================================
-// v1.2.3 完
+// v1.2.5 完
 //
 // 本版本重點：
 // 1. 中文／泰文改為全系統語言
