@@ -1,22 +1,22 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.2.0
+// 版本：v1.2.1
 //
 // 本次版本修改內容：
-// 1. 化驗結果改為 Firebase Cloud Firestore 雲端儲存
-// 2. 所有已授權手機共享同一份化驗結果
-// 3. 新增化驗資料後，其他手機可讀取
-// 4. 修改化驗資料後，其他手機可同步看到
-// 5. 管理者刪除化驗資料時，同步刪除雲端資料
-// 6. 化驗存檔不再以 LocalStorage 作為主要資料來源
-// 7. 化驗存檔頁面使用 Firestore 即時監聽
-// 8. 保留原本化驗計算公式
-// 9. 保留原本咬食量計算公式
-// 10. 保留 A 線／B 線化驗設定
-// 11. 保留登入、Firebase 授權、管理者、QR Code
-// 12. 保留 v1.1.8 化驗頁面縮小優化
-// 13. 刪除化驗頁面的「顯示方式：全部」
-// 14. 縮小化驗輸入框、結果欄位、槽間距
+// 1. 修正預浸槽 CBBA-A 添加量計算
+// 2. 預浸槽 CBBA-A：A 線每 0.1 濃度差添加 1 L
+// 3. 預浸槽 CBBA-A：B 線每 0.1 濃度差添加 0.5 L
+// 4. 棕化槽 CBBA-A 維持原本獨立添加規則
+// 5. 修正銅離子計算精度
+// 6. 銅離子 6.6 × 3.177 = 20.9682，顯示為 21.0
+// 7. 化驗結果依照化驗槽順序顯示
+// 8. 化驗結果區改為較緊湊的一頁式排版
+// 9. 化驗結果明確顯示槽別
+// 10. 查看化驗結果不再顯示 A 線／B 線選項
+// 11. 保留 Firebase Cloud Firestore 雲端儲存
+// 12. 保留所有授權手機共享化驗結果
+// 13. 保留登入、Firebase 授權、管理者、QR Code
+// 14. 本版本暫不加入槽體積
 //
 // ============================================================
 
@@ -108,17 +108,13 @@ class FirebaseUserManager {
 }
 
 // ============================================================
-// v1.2.0 化驗資料 Firebase 管理
+// Firebase 化驗資料管理
 // ============================================================
 
 class FirebaseAnalysisManager {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static const String collectionName = 'analysis_records';
-
-  // ----------------------------------------------------------
-  // 新增化驗資料
-  // ----------------------------------------------------------
 
   static Future<String> addRecord(Map<String, dynamic> record) async {
     final doc = _firestore.collection(collectionName).doc();
@@ -136,10 +132,6 @@ class FirebaseAnalysisManager {
     return doc.id;
   }
 
-  // ----------------------------------------------------------
-  // 修改化驗資料
-  // ----------------------------------------------------------
-
   static Future<void> updateRecord(
     String id,
     Map<String, dynamic> record,
@@ -154,18 +146,9 @@ class FirebaseAnalysisManager {
     await _firestore.collection(collectionName).doc(id).update(data);
   }
 
-  // ----------------------------------------------------------
-  // 管理者刪除
-  // ----------------------------------------------------------
-
   static Future<void> deleteRecord(String id) async {
     await _firestore.collection(collectionName).doc(id).delete();
   }
-
-  // ----------------------------------------------------------
-  // 所有化驗資料
-  // 即時監聽
-  // ----------------------------------------------------------
 
   static Stream<List<Map<String, dynamic>>> recordsStream() {
     return _firestore
@@ -199,10 +182,6 @@ class FirebaseAnalysisManager {
         });
   }
 
-  // ----------------------------------------------------------
-  // 單筆資料
-  // ----------------------------------------------------------
-
   static Future<Map<String, dynamic>?> getRecord(String id) async {
     final doc = await _firestore.collection(collectionName).doc(id).get();
 
@@ -225,7 +204,7 @@ class FirebaseAnalysisManager {
 class KLFConfig {
   static const String appName = 'KLF-棕化';
 
-  static const String version = 'v1.2.0';
+  static const String version = 'v1.2.1';
 
   static const String adminPassword = '0';
 
@@ -1265,6 +1244,7 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
+
     'acid_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: 0.5,
@@ -1273,6 +1253,7 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 0.5,
       unit: 'L',
     ),
+
     'clean_hl2': ChemicalSetting(
       name: 'HL-II',
       middle: isA ? 7.0 : 3.7,
@@ -1281,6 +1262,7 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
+
     'pre_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: isA ? 2.0 : 1.5,
@@ -1289,14 +1271,23 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
+
+    // --------------------------------------------------------
+    // 預浸槽 CBBA-A
+    //
+    // A 線：每 0.1 濃度差添加 1 L
+    // B 線：每 0.1 濃度差添加 0.5 L
+    //
+    // --------------------------------------------------------
     'pre_cbba': ChemicalSetting(
       name: 'CBBA-A',
       middle: isA ? 1.5 : 2.5,
       factor: 1.0,
       direct: true,
-      addPerPoint: isA ? 1.5 : 0.5,
+      addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
+
     'brown_sulfuric': ChemicalSetting(
       name: '硫酸',
       middle: isA ? 5.6 : 5.4,
@@ -1305,6 +1296,7 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 3.0,
       unit: 'L',
     ),
+
     'brown_h2o2': ChemicalSetting(
       name: '雙氧水',
       middle: isA ? 3.4 : 3.5,
@@ -1313,6 +1305,14 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 1.5,
       unit: 'L',
     ),
+
+    // --------------------------------------------------------
+    // 棕化槽 CBBA-A
+    //
+    // 保留原本獨立規則：
+    // A / B 線每 0.1 濃度差添加 1.5 L
+    //
+    // --------------------------------------------------------
     'brown_cbba': ChemicalSetting(
       name: 'CBBA-A',
       middle: isA ? 4.8 : 5.5,
@@ -1321,6 +1321,18 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: 1.5,
       unit: 'L',
     ),
+
+    // --------------------------------------------------------
+    // 銅離子
+    //
+    // 輸入值 × 3.177
+    //
+    // 例如：
+    // 6.6 × 3.177 = 20.9682
+    // 顯示到小數第 1 位 = 21.0
+    //
+    // 不在計算過程中先把結果截成 20.9。
+    // --------------------------------------------------------
     'brown_copper': const ChemicalSetting(
       name: '銅離子',
       middle: null,
@@ -1332,6 +1344,10 @@ Map<String, ChemicalSetting> getSettings(String line) {
   };
 }
 
+// ============================================================
+// 數值處理
+// ============================================================
+
 double roundToTenth(double value) {
   return (value * 10).round() / 10;
 }
@@ -1339,6 +1355,45 @@ double roundToTenth(double value) {
 String formatNumber(double value) {
   return value.toStringAsFixed(1);
 }
+
+// ============================================================
+// 化驗結果固定順序
+// ============================================================
+
+const List<String> analysisOrder = [
+  'acid_sulfuric',
+  'acid_h2o2',
+  'clean_hl2',
+  'pre_h2o2',
+  'pre_cbba',
+  'brown_sulfuric',
+  'brown_h2o2',
+  'brown_cbba',
+  'brown_copper',
+];
+
+const List<Map<String, dynamic>> tankOrder = [
+  {
+    'title': '第一槽｜酸洗槽',
+    'description': '硫酸、雙氧水',
+    'keys': ['acid_sulfuric', 'acid_h2o2'],
+  },
+  {
+    'title': '第二槽｜清潔槽',
+    'description': 'HL-II',
+    'keys': ['clean_hl2'],
+  },
+  {
+    'title': '第三槽｜預浸槽',
+    'description': '雙氧水、CBBA-A',
+    'keys': ['pre_h2o2', 'pre_cbba'],
+  },
+  {
+    'title': '第四槽｜棕化槽',
+    'description': '硫酸、雙氧水、CBBA-A、銅離子',
+    'keys': ['brown_sulfuric', 'brown_h2o2', 'brown_cbba', 'brown_copper'],
+  },
+];
 
 // ============================================================
 // 化驗頁面
@@ -1382,6 +1437,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return double.tryParse(value.trim());
   }
 
+  // ----------------------------------------------------------
+  // 化驗濃度計算
+  // ----------------------------------------------------------
+
   double? concentration(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
 
@@ -1399,8 +1458,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
       return roundToTenth(number);
     }
 
-    return roundToTenth(number * setting.factor);
+    final calculated = number * setting.factor;
+
+    // 銅離子特別保留完整計算精度，
+    // 最後顯示時才取小數第 1 位。
+    if (key == 'brown_copper') {
+      return calculated;
+    }
+
+    return roundToTenth(calculated);
   }
+
+  // ----------------------------------------------------------
+  // 添加量計算
+  // ----------------------------------------------------------
 
   double? addAmount(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
@@ -1491,7 +1562,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   // ----------------------------------------------------------
-  // v1.2.0 雲端存檔
+  // 雲端存檔
   // ----------------------------------------------------------
 
   Future<void> saveRecord() async {
@@ -1557,7 +1628,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
       }
 
       beforeWeightController.clear();
-
       afterWeightController.clear();
 
       setState(() {});
@@ -1986,7 +2056,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     beforeWeightController.dispose();
-
     afterWeightController.dispose();
 
     super.dispose();
@@ -1995,7 +2064,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
 // ============================================================
 // 化驗存檔
-// v1.2.0：Firebase 即時共享
+// Firebase 即時共享
 // ============================================================
 
 class RecordsPage extends StatefulWidget {
@@ -2301,7 +2370,7 @@ class _RecordsPageState extends State<RecordsPage> {
                   ),
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
                       child: _recordSummary(record),
                     ),
                   ],
@@ -2314,8 +2383,27 @@ class _RecordsPageState extends State<RecordsPage> {
     );
   }
 
+  // ==========================================================
+  // 化驗結果
+  //
+  // 固定順序：
+  // 咬食量
+  // ↓
+  // 第一槽｜酸洗槽
+  // ↓
+  // 第二槽｜清潔槽
+  // ↓
+  // 第三槽｜預浸槽
+  // ↓
+  // 第四槽｜棕化槽
+  //
+  // 本區採緊湊一頁式結果排版。
+  // ==========================================================
+
   Widget _recordSummary(Map<String, dynamic> record) {
     final chemicals = Map<String, dynamic>.from(record['chemicals'] ?? {});
+
+    final line = record['line']?.toString() ?? '';
 
     final biteValue =
         record['biteAmount'] == null || record['biteAmount'].toString().isEmpty
@@ -2325,170 +2413,244 @@ class _RecordsPageState extends State<RecordsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(),
-        const SizedBox(height: 8),
-        Card(
-          color: const Color(0xFFEDE4DE),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    '咬食量',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+        const Divider(height: 1),
+        const SizedBox(height: 7),
+
+        // ------------------------------------------------------
+        // 咬食量
+        // ------------------------------------------------------
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEDE4DE),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '咬食量',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
-                Text(
-                  biteValue,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
+              ),
+              Text(
+                biteValue,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 12),
+
+        const SizedBox(height: 8),
+
         const Text(
           '化驗結果',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
         ),
-        const SizedBox(height: 10),
-        ...chemicals.entries.map((entry) {
-          final key = entry.key;
 
-          final data = Map<String, dynamic>.from(entry.value ?? {});
+        const SizedBox(height: 5),
 
-          final setting = getSettings(record['line'].toString())[key];
+        // ------------------------------------------------------
+        // 四個槽依固定化驗順序顯示
+        // ------------------------------------------------------
+        ...tankOrder.map((tank) {
+          final title = tank['title'].toString();
 
-          if (setting == null) {
-            return const SizedBox();
-          }
+          final description = tank['description'].toString();
 
-          final input = data['input']?.toString() ?? '';
+          final keys = List<String>.from(tank['keys']);
 
-          final concentration = data['concentration']?.toString() ?? '';
-
-          final addAmount = data['addAmount']?.toString() ?? '';
-
-          Color? addColor;
-
-          if (addAmount == '不用添加') {
-            addColor = Colors.green;
-          } else if (addAmount.isNotEmpty && addAmount != '-') {
-            addColor = Colors.red;
-          }
-
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth < 650) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          setting.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _smallResult(
-                                '輸入',
-                                input.isEmpty ? '-' : input,
-                              ),
-                            ),
-                            Expanded(
-                              child: _smallResult(
-                                '中值',
-                                setting.middle == null
-                                    ? '無中值'
-                                    : formatNumber(setting.middle!),
-                              ),
-                            ),
-                            Expanded(
-                              child: _smallResult(
-                                '濃度',
-                                concentration.isEmpty ? '-' : concentration,
-                              ),
-                            ),
-                            Expanded(
-                              child: _smallResult(
-                                '需添加量',
-                                addAmount.isEmpty ? '-' : addAmount,
-                                valueColor: addColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          setting.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      Expanded(
-                        child: _smallResult('輸入', input.isEmpty ? '-' : input),
-                      ),
-                      Expanded(
-                        child: _smallResult(
-                          '中值',
-                          setting.middle == null
-                              ? '無中值'
-                              : formatNumber(setting.middle!),
-                        ),
-                      ),
-                      Expanded(
-                        child: _smallResult(
-                          '濃度',
-                          concentration.isEmpty ? '-' : concentration,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: _smallResult(
-                          '需添加量',
-                          addAmount.isEmpty ? '-' : addAmount,
-                          valueColor: addColor,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
+          return _resultTank(
+            line: line,
+            title: title,
+            description: description,
+            keys: keys,
+            chemicals: chemicals,
           );
         }),
       ],
     );
   }
 
+  Widget _resultTank({
+    required String line,
+    required String title,
+    required String description,
+    required List<String> keys,
+    required Map<String, dynamic> chemicals,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --------------------------------------------------
+            // 槽別
+            // --------------------------------------------------
+
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Text(
+                  description,
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 4),
+
+            // --------------------------------------------------
+            // 化驗結果
+            // --------------------------------------------------
+            ...keys.map((key) {
+              final raw = chemicals[key];
+
+              final data = raw is Map
+                  ? Map<String, dynamic>.from(raw)
+                  : <String, dynamic>{};
+
+              return _compactResultRow(line: line, key: key, data: data);
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _compactResultRow({
+    required String line,
+    required String key,
+    required Map<String, dynamic> data,
+  }) {
+    final setting = getSettings(line)[key];
+
+    if (setting == null) {
+      return const SizedBox();
+    }
+
+    final input = data['input']?.toString() ?? '';
+
+    String concentration = data['concentration']?.toString() ?? '';
+
+    final addAmount = data['addAmount']?.toString() ?? '';
+
+    // ----------------------------------------------------------
+    // 舊資料如果銅離子曾經被錯誤存成 20.9，
+    // 這裡依原始輸入重新計算，避免歷史結果繼續顯示錯誤。
+    // ----------------------------------------------------------
+
+    if (key == 'brown_copper') {
+      final inputNumber = double.tryParse(input.trim());
+
+      if (inputNumber != null) {
+        concentration = formatNumber(inputNumber * setting.factor);
+      }
+    }
+
+    Color? addColor;
+
+    if (addAmount == '不用添加') {
+      addColor = Colors.green;
+    } else if (addAmount.isNotEmpty && addAmount != '-') {
+      addColor = Colors.red;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F8F8),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        children: [
+          // 化學品名稱
+          Expanded(
+            flex: 2,
+            child: Text(
+              setting.name,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+
+          // 輸入
+          Expanded(
+            flex: 2,
+            child: _smallResult('輸入', input.isEmpty ? '-' : input),
+          ),
+
+          // 中值
+          Expanded(
+            flex: 2,
+            child: _smallResult(
+              '中值',
+              setting.middle == null ? '無中值' : formatNumber(setting.middle!),
+            ),
+          ),
+
+          // 濃度
+          Expanded(
+            flex: 2,
+            child: _smallResult(
+              '濃度',
+              concentration.isEmpty ? '-' : concentration,
+            ),
+          ),
+
+          // 添加量
+          Expanded(
+            flex: 3,
+            child: _smallResult(
+              '需添加量',
+              addAmount.isEmpty ? '-' : addAmount,
+              valueColor: addColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _smallResult(String title, String value, {Color? valueColor}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-          const SizedBox(height: 3),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.grey, fontSize: 8),
+          ),
+          const SizedBox(height: 1),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontSize: 10,
               color: valueColor,
             ),
           ),
@@ -2573,7 +2735,13 @@ class _RecordEditPageState extends State<RecordEditPage> {
       return roundToTenth(number);
     }
 
-    return roundToTenth(number * setting.factor);
+    final calculated = number * setting.factor;
+
+    if (key == 'brown_copper') {
+      return calculated;
+    }
+
+    return roundToTenth(calculated);
   }
 
   double? addAmount(String key, String value) {
@@ -2619,10 +2787,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
     return (before - after) / 100 * 21910;
   }
-
-  // ----------------------------------------------------------
-  // v1.2.0 雲端修改
-  // ----------------------------------------------------------
 
   Future<void> save() async {
     if (_saving) {
@@ -2935,7 +3099,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
             ),
           ),
           const SizedBox(height: 15),
-          ...settings.keys.map(
+          ...analysisOrder.map(
             (key) => Column(children: [input(key), resultPreview(key)]),
           ),
           const SizedBox(height: 20),
@@ -2971,7 +3135,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
-
     afterWeightController.dispose();
 
     super.dispose();
@@ -2979,5 +3142,20 @@ class _RecordEditPageState extends State<RecordEditPage> {
 }
 
 // ============================================================
-// v1.2.0 完
+// v1.2.1 完
+// ============================================================
+//
+// 本版本完成：
+// 1. 預浸 CBBA-A 添加量修正
+// 2. A 線每 0.1 添加 1 L
+// 3. B 線每 0.1 添加 0.5 L
+// 4. 棕化 CBBA-A 保持原本獨立規則
+// 5. 銅離子計算精度修正
+// 6. 6.6 × 3.177 顯示 21.0
+// 7. 化驗結果依照槽別及化驗順序排列
+// 8. 化驗結果區改為緊湊一頁式排版
+// 9. 化驗結果顯示槽別
+// 10. 移除查看結果頁面的 A/B 線選項
+// 11. 槽體積本版本暫不加入
+//
 // ============================================================
