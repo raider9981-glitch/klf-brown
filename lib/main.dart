@@ -1,21 +1,30 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.2.2
+// 版本：v1.2.3
 //
 // 本次版本修改內容：
-// 1. 化驗結果維持一頁式顯示
-// 2. 化驗結果不顯示 A 線／B 線選項
-// 3. 保留原有化驗計算公式
-// 4. 登入頁新增中文／泰文切換
-// 5. 化驗頁新增中文／泰文切換
-// 6. 尚未登入時不預先顯示紅色錯誤訊息
-// 7. 僅在輸入錯誤或按下登入後顯示錯誤
-// 8. 新增 A／B 線各槽體積
-// 9. A 線：酸洗 500 L、清潔 800 L、預浸 700 L、棕化 1400 L
-// 10. B 線：酸洗 246 L、清潔 582 L、預浸 440 L、棕化 1560 L
-// 11. 保留 Firebase Cloud Firestore
-// 12. 保留授權手機共享化驗結果
-// 13. 保留登入、Firebase 授權、管理者、QR Code
+// 1. 中文／泰文改為全系統語言切換
+// 2. 語言切換後所有頁面同步切換
+// 3. 登入頁中文／泰文
+// 4. 管理者登入中文／泰文
+// 5. 管理者設定中文／泰文
+// 6. 首頁中文／泰文
+// 7. A／B 線選擇中文／泰文
+// 8. 化驗頁中文／泰文
+// 9. 化驗結果中文／泰文
+// 10. 化驗存檔中文／泰文
+// 11. 修改化驗資料中文／泰文
+// 12. QR Code 頁面中文／泰文
+// 13. 所有按鈕、提示、錯誤訊息同步切換
+// 14. 語言切換跨頁面維持
+// 15. 保留原有化驗計算公式
+// 16. 保留一頁式化驗結果
+// 17. 化驗結果不顯示 A／B 線選項
+// 18. 保留 Firebase Cloud Firestore
+// 19. 保留授權手機共享化驗結果
+// 20. 保留管理者、授權、QR Code
+// 21. A 線槽體積：500 / 800 / 700 / 1400 L
+// 22. B 線槽體積：246 / 582 / 440 / 1560 L
 //
 // ============================================================
 
@@ -30,9 +39,7 @@ import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   runApp(const KLFApp());
 }
 
@@ -60,9 +67,7 @@ class FirebaseUserManager {
   static Future<bool> isAuthorized(String name) async {
     final cleanName = name.trim();
 
-    if (cleanName.isEmpty) {
-      return false;
-    }
+    if (cleanName.isEmpty) return false;
 
     final snapshot = await _firestore
         .collection(collectionName)
@@ -76,15 +81,9 @@ class FirebaseUserManager {
   static Future<bool> addUser(String name) async {
     final cleanName = name.trim();
 
-    if (cleanName.isEmpty) {
-      return false;
-    }
+    if (cleanName.isEmpty) return false;
 
-    final exists = await isAuthorized(cleanName);
-
-    if (exists) {
-      return false;
-    }
+    if (await isAuthorized(cleanName)) return false;
 
     await _firestore.collection(collectionName).add({
       'name': cleanName,
@@ -107,7 +106,7 @@ class FirebaseUserManager {
 }
 
 // ============================================================
-// Firebase 化驗資料管理
+// Firebase 化驗資料
 // ============================================================
 
 class FirebaseAnalysisManager {
@@ -180,20 +179,6 @@ class FirebaseAnalysisManager {
           }).toList();
         });
   }
-
-  static Future<Map<String, dynamic>?> getRecord(String id) async {
-    final doc = await _firestore.collection(collectionName).doc(id).get();
-
-    if (!doc.exists) {
-      return null;
-    }
-
-    final data = Map<String, dynamic>.from(doc.data()!);
-
-    data['id'] = doc.id;
-
-    return data;
-  }
 }
 
 // ============================================================
@@ -202,19 +187,18 @@ class FirebaseAnalysisManager {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-
-  static const String version = 'v1.2.2';
-
+  static const String version = 'v1.2.3';
   static const String adminPassword = '0';
 
   static const String websiteUrl =
       'https://raider9981-glitch.github.io/klf-brown/';
 
   static const String storageDeviceUser = 'klf_device_user';
+  static const String storageLanguage = 'klf_language';
 }
 
 // ============================================================
-// 本機登入 Storage
+// 本機 Storage
 // ============================================================
 
 class LocalStorageHelper {
@@ -232,166 +216,407 @@ class LocalStorageHelper {
     return get(KLFConfig.storageDeviceUser);
   }
 
-  static void saveDeviceUser(String userName) {
-    set(KLFConfig.storageDeviceUser, userName);
+  static void saveDeviceUser(String name) {
+    set(KLFConfig.storageDeviceUser, name);
   }
 
   static void clearDeviceUser() {
     remove(KLFConfig.storageDeviceUser);
   }
+
+  static KLFLanguage getLanguage() {
+    return get(KLFConfig.storageLanguage) == 'thai'
+        ? KLFLanguage.thai
+        : KLFLanguage.chinese;
+  }
+
+  static void saveLanguage(KLFLanguage language) {
+    set(
+      KLFConfig.storageLanguage,
+      language == KLFLanguage.thai ? 'thai' : 'chinese',
+    );
+  }
 }
 
 // ============================================================
-// 語言
+// 全系統語言
 // ============================================================
 
 enum KLFLanguage { chinese, thai }
 
-class KLFText {
-  static bool isThai(KLFLanguage language) => language == KLFLanguage.thai;
+class KLFGlobalLanguage {
+  static final ValueNotifier<KLFLanguage> notifier = ValueNotifier<KLFLanguage>(
+    LocalStorageHelper.getLanguage(),
+  );
 
-  static String loginTitle(KLFLanguage language) =>
-      isThai(language) ? 'เข้าสู่ระบบ KLF-棕化' : 'KLF-棕化';
+  static KLFLanguage get current => notifier.value;
 
-  static String loginSubtitle(KLFLanguage language) =>
-      isThai(language) ? 'ระบบจัดการวิเคราะห์น้ำยาเคมี' : '棕化藥水分析管理系統';
+  static bool get isThai => current == KLFLanguage.thai;
 
-  static String authorizedName(KLFLanguage language) =>
-      isThai(language) ? 'ชื่อผู้ได้รับอนุญาต' : '授權人員名稱';
+  static void toggle() {
+    notifier.value = isThai ? KLFLanguage.chinese : KLFLanguage.thai;
 
-  static String authorizedHint(KLFLanguage language) =>
-      isThai(language) ? 'กรุณากรอกชื่อที่ได้รับอนุญาต' : '請輸入已授權名稱';
+    LocalStorageHelper.saveLanguage(notifier.value);
+  }
 
-  static String login(KLFLanguage language) =>
-      isThai(language) ? 'เข้าสู่ระบบ' : '登入';
-
-  static String firstLoginHint(KLFLanguage language) => isThai(language)
-      ? 'การเข้าสู่ระบบครั้งแรกต้องใช้ชื่อที่ได้รับอนุญาต'
-      : '首次登入需輸入已授權名稱登入';
-
-  static String enterAuthorizedName(KLFLanguage language) =>
-      isThai(language) ? 'กรุณากรอกชื่อที่ได้รับอนุญาต' : '請輸入授權名稱';
-
-  static String unauthorized(KLFLanguage language) => isThai(language)
-      ? 'ชื่อไม่ได้รับอนุญาต ไม่สามารถเข้าสู่ระบบได้'
-      : '名稱未授權，無法登入';
-
-  static String firebaseError(KLFLanguage language) => isThai(language)
-      ? 'ไม่สามารถเชื่อมต่อ Firebase กรุณาตรวจสอบเครือข่าย'
-      : '無法連線 Firebase，請確認網路連線';
-
-  static String languageButton(KLFLanguage language) =>
-      isThai(language) ? '中文' : 'ไทย';
-
-  static String adminLogin(KLFLanguage language) =>
-      isThai(language) ? 'เข้าสู่ระบบผู้ดูแล' : '管理者登入';
-
-  static String analysisTitle(KLFLanguage language, String line) =>
-      isThai(language) ? '$line｜วิเคราะห์น้ำยา' : '$line｜藥水化驗';
-
-  static String analyst(KLFLanguage language, String name) =>
-      isThai(language) ? 'ผู้วิเคราะห์: $name' : '化驗人員：$name';
-
-  static String bite(KLFLanguage language) =>
-      isThai(language) ? 'ปริมาณการกัด' : '咬食量';
-
-  static String result(KLFLanguage language) =>
-      isThai(language) ? 'ผลการวิเคราะห์' : '化驗結果';
-
-  static String concentration(KLFLanguage language) =>
-      isThai(language) ? 'ความเข้มข้น' : '濃度';
-
-  static String input(KLFLanguage language) =>
-      isThai(language) ? 'ค่าที่ป้อน' : '輸入';
-
-  static String middle(KLFLanguage language) =>
-      isThai(language) ? 'ค่ากลาง' : '中值';
-
-  static String addAmount(KLFLanguage language) =>
-      isThai(language) ? 'ปริมาณที่ต้องเติม' : '需添加量';
-
-  static String noNeedAdd(KLFLanguage language) =>
-      isThai(language) ? 'ไม่ต้องเติม' : '不用添加';
-
-  static String titration(KLFLanguage language) =>
-      isThai(language) ? 'ค่าการไทเทรต' : '滴定值';
-
-  static String directConcentration(KLFLanguage language) =>
-      isThai(language) ? 'ความเข้มข้นโดยตรง' : '濃度';
-
-  static String enterTitration(KLFLanguage language) =>
-      isThai(language) ? 'กรอกค่าการไทเทรต' : '輸入滴定值';
-
-  static String enterConcentration(KLFLanguage language) =>
-      isThai(language) ? 'กรอกความเข้มข้นโดยตรง' : '直接輸入濃度';
-
-  static String unbrownedWeight(KLFLanguage language) =>
-      isThai(language) ? 'น้ำหนักก่อนบราวนิ่ง' : '未棕化重量';
-
-  static String brownedWeight(KLFLanguage language) =>
-      isThai(language) ? 'น้ำหนักหลังบราวนิ่ง' : '已棕化重量';
-
-  static String biteDescription(KLFLanguage language) => isThai(language)
-      ? 'กรอกน้ำหนักก่อนและหลังบราวนิ่ง ระบบจะคำนวณอัตโนมัติ'
-      : '未棕化重量、已棕化重量由化驗人員輸入，系統自動計算。';
-
-  static String biteFormula(KLFLanguage language) => isThai(language)
-      ? 'สูตร: (น้ำหนักก่อนบราวนิ่ง－น้ำหนักหลังบราวนิ่ง) ÷ 100 × 21910'
-      : '公式：(未棕化重量－已棕化重量) ÷ 100 × 21910';
-
-  static String save(KLFLanguage language) =>
-      isThai(language) ? 'วิเคราะห์เสร็จและบันทึก' : '化驗完成並存檔';
-
-  static String saving(KLFLanguage language) =>
-      isThai(language) ? 'กำลังบันทึกบนคลาวด์...' : '雲端儲存中...';
-
-  static String records(KLFLanguage language) =>
-      isThai(language) ? 'ประวัติการวิเคราะห์' : '查看共享化驗存檔';
-
-  static String firstTank(KLFLanguage language) =>
-      isThai(language) ? 'ถังที่ 1｜ถังกรดล้าง' : '第一槽｜酸洗槽';
-
-  static String secondTank(KLFLanguage language) =>
-      isThai(language) ? 'ถังที่ 2｜ถังทำความสะอาด' : '第二槽｜清潔槽';
-
-  static String thirdTank(KLFLanguage language) =>
-      isThai(language) ? 'ถังที่ 3｜ถังพรีดิป' : '第三槽｜預浸槽';
-
-  static String fourthTank(KLFLanguage language) =>
-      isThai(language) ? 'ถังที่ 4｜ถังบราวนิ่ง' : '第四槽｜棕化槽';
-
-  static String acidDescription(KLFLanguage language) =>
-      isThai(language) ? 'กรดซัลฟิวริก, ไฮโดรเจนเปอร์ออกไซด์' : '硫酸、雙氧水';
-
-  static String cleanDescription(KLFLanguage language) =>
-      isThai(language) ? 'HL-II' : 'HL-II';
-
-  static String preDescription(KLFLanguage language) =>
-      isThai(language) ? 'ไฮโดรเจนเปอร์ออกไซด์, CBBA-A' : '雙氧水、CBBA-A';
-
-  static String brownDescription(KLFLanguage language) => isThai(language)
-      ? 'กรดซัลฟิวริก, ไฮโดรเจนเปอร์ออกไซด์, CBBA-A, ทองแดง'
-      : '硫酸、雙氧水、CBBA-A、銅離子';
-
-  static String tankVolume(KLFLanguage language) =>
-      isThai(language) ? 'ปริมาตรถัง' : '槽體積';
-
-  static String liters(KLFLanguage language, double value) => isThai(language)
-      ? '${formatNumber(value)} L'
-      : '${formatNumber(value)} L';
-
-  static String savedSuccess(KLFLanguage language) => isThai(language)
-      ? 'บันทึกข้อมูลบนคลาวด์แล้ว โทรศัพท์ที่ได้รับอนุญาตทั้งหมดสามารถดูได้'
-      : '化驗資料已儲存至雲端，所有授權手機皆可查看';
-
-  static String saveFailed(KLFLanguage language) => isThai(language)
-      ? 'บันทึกบนคลาวด์ไม่สำเร็จ กรุณาตรวจสอบ Firebase'
-      : '雲端存檔失敗，請確認 Firebase 連線與權限';
-
-  static String formatNumber(double value) => value.toStringAsFixed(1);
+  static String t(String zh, String th) => isThai ? th : zh;
 }
 
-String formatNumber(double value) => value.toStringAsFixed(1);
+// ============================================================
+// 語言文字
+// ============================================================
+
+class KLFText {
+  static String languageButton() => KLFGlobalLanguage.t('ไทย', '中文');
+
+  static String loginTitle() =>
+      KLFGlobalLanguage.t('KLF-棕化', 'เข้าสู่ระบบ KLF-棕化');
+
+  static String loginSubtitle() =>
+      KLFGlobalLanguage.t('棕化藥水分析管理系統', 'ระบบจัดการวิเคราะห์น้ำยาเคมี');
+
+  static String authorizedName() =>
+      KLFGlobalLanguage.t('授權人員名稱', 'ชื่อผู้ได้รับอนุญาต');
+
+  static String authorizedHint() =>
+      KLFGlobalLanguage.t('請輸入已授權名稱', 'กรุณากรอกชื่อที่ได้รับอนุญาต');
+
+  static String login() => KLFGlobalLanguage.t('登入', 'เข้าสู่ระบบ');
+
+  static String firstLoginHint() => KLFGlobalLanguage.t(
+    '首次登入需輸入已授權名稱登入',
+    'การเข้าสู่ระบบครั้งแรกต้องใช้ชื่อที่ได้รับอนุญาต',
+  );
+
+  static String enterAuthorizedName() =>
+      KLFGlobalLanguage.t('請輸入授權名稱', 'กรุณากรอกชื่อที่ได้รับอนุญาต');
+
+  static String unauthorized() => KLFGlobalLanguage.t(
+    '名稱未授權，無法登入',
+    'ชื่อไม่ได้รับอนุญาต ไม่สามารถเข้าสู่ระบบได้',
+  );
+
+  static String firebaseError() => KLFGlobalLanguage.t(
+    '無法連線 Firebase，請確認網路連線',
+    'ไม่สามารถเชื่อมต่อ Firebase กรุณาตรวจสอบเครือข่าย',
+  );
+
+  static String adminLogin() =>
+      KLFGlobalLanguage.t('管理者登入', 'เข้าสู่ระบบผู้ดูแล');
+
+  static String adminPassword() =>
+      KLFGlobalLanguage.t('管理者密碼', 'รหัสผ่านผู้ดูแล');
+
+  static String loginAdmin() =>
+      KLFGlobalLanguage.t('登入管理者', 'เข้าสู่ระบบผู้ดูแล');
+
+  static String wrongAdminPassword() =>
+      KLFGlobalLanguage.t('管理者密碼錯誤', 'รหัสผ่านผู้ดูแลไม่ถูกต้อง');
+
+  static String adminSettings() =>
+      KLFGlobalLanguage.t('管理者設定', 'การตั้งค่าผู้ดูแล');
+
+  static String addAuthorizedUser() =>
+      KLFGlobalLanguage.t('新增授權人員', 'เพิ่มผู้ได้รับอนุญาต');
+
+  static String addAuthorizedDescription() => KLFGlobalLanguage.t(
+    '新增後會同步到 Firebase，其他手機也可以使用。',
+    'เมื่อเพิ่มแล้วจะซิงค์กับ Firebase และโทรศัพท์เครื่องอื่นสามารถใช้งานได้',
+  );
+
+  static String authorizedUsers() =>
+      KLFGlobalLanguage.t('已授權人員', 'รายชื่อผู้ได้รับอนุญาต');
+
+  static String noAuthorizedUsers() =>
+      KLFGlobalLanguage.t('目前尚未建立授權人員', 'ยังไม่มีรายชื่อผู้ได้รับอนุญาต');
+
+  static String firebaseAuthorization() =>
+      KLFGlobalLanguage.t('Firebase 雲端授權', 'การอนุญาตผ่าน Firebase');
+
+  static String add() => KLFGlobalLanguage.t('新增', 'เพิ่ม');
+
+  static String delete() => KLFGlobalLanguage.t('刪除', 'ลบ');
+
+  static String cancel() => KLFGlobalLanguage.t('取消', 'ยกเลิก');
+
+  static String confirm() => KLFGlobalLanguage.t('確認', 'ยืนยัน');
+
+  static String refresh() => KLFGlobalLanguage.t('重新整理', 'รีเฟรช');
+
+  static String clear() => KLFGlobalLanguage.t('清除', 'ล้าง');
+
+  static String deviceLoginRecord() =>
+      KLFGlobalLanguage.t('本設備登入記錄', 'ประวัติการเข้าสู่ระบบของอุปกรณ์นี้');
+
+  static String noRecord() => KLFGlobalLanguage.t('目前沒有記錄', 'ไม่มีข้อมูล');
+
+  static String cloudSource() =>
+      KLFGlobalLanguage.t('化驗資料來源', 'แหล่งข้อมูลการวิเคราะห์');
+
+  static String cloudShared() => KLFGlobalLanguage.t('雲端共享', 'แชร์บนคลาวด์');
+
+  static String systemVersion() => KLFGlobalLanguage.t('系統版本', 'เวอร์ชันระบบ');
+
+  static String homeTitle() => KLFGlobalLanguage.t('KLF-棕化', 'KLF-棕化');
+
+  static String productionLine() =>
+      KLFGlobalLanguage.t('棕化水平生產線', 'สายการผลิตบราวนิ่ง');
+
+  static String chooseLine() => KLFGlobalLanguage.t(
+    '請選擇需要進行藥水分析的生產線',
+    'กรุณาเลือกสายการผลิตที่ต้องการวิเคราะห์น้ำยา',
+  );
+
+  static String lineA() => KLFGlobalLanguage.t('A線', 'สาย A');
+
+  static String lineB() => KLFGlobalLanguage.t('B線', 'สาย B');
+
+  static String lineASubtitle() =>
+      KLFGlobalLanguage.t('棕化水平生產線 A', 'สายการผลิตบราวนิ่ง A');
+
+  static String lineBSubtitle() =>
+      KLFGlobalLanguage.t('棕化水平生產線 B', 'สายการผลิตบราวนิ่ง B');
+
+  static String enterAnalysis() =>
+      KLFGlobalLanguage.t('進入化驗', 'เข้าสู่การวิเคราะห์');
+
+  static String records() => KLFGlobalLanguage.t('化驗存檔', 'ประวัติการวิเคราะห์');
+
+  static String recordsDescription() => KLFGlobalLanguage.t(
+    '查看所有手機共享的歷史化驗資料',
+    'ดูข้อมูลการวิเคราะห์ย้อนหลังที่แชร์กับโทรศัพท์ทั้งหมด',
+  );
+
+  static String analysisCycle() =>
+      KLFGlobalLanguage.t('化驗週期', 'รอบการวิเคราะห์');
+
+  static String analysisCycleDescription() =>
+      KLFGlobalLanguage.t('每 4 小時進行一次藥水分析', 'วิเคราะห์น้ำยาทุก 4 ชั่วโมง');
+
+  static String admin() => KLFGlobalLanguage.t('管理者', 'ผู้ดูแล');
+
+  static String qrInvite() => KLFGlobalLanguage.t('邀請開啟網站', 'เชิญเปิดเว็บไซต์');
+
+  static String qrTitle() =>
+      KLFGlobalLanguage.t('KLF-棕化網站 QR Code', 'QR Code เว็บไซต์ KLF-棕化');
+
+  static String qrDescription() => KLFGlobalLanguage.t(
+    '使用手機掃描 QR Code 即可開啟 KLF-棕化網站',
+    'สแกน QR Code ด้วยโทรศัพท์เพื่อเปิดเว็บไซต์ KLF-棕化',
+  );
+
+  static String qrLoginHint() => KLFGlobalLanguage.t(
+    '掃描後仍需使用已授權名稱登入',
+    'หลังสแกนแล้วยังคงต้องเข้าสู่ระบบด้วยชื่อที่ได้รับอนุญาต',
+  );
+
+  static String close() => KLFGlobalLanguage.t('關閉', 'ปิด');
+
+  static String analysisTitle(String line) =>
+      KLFGlobalLanguage.t('$line｜藥水化驗', '$line｜วิเคราะห์น้ำยา');
+
+  static String analyst(String name) =>
+      KLFGlobalLanguage.t('化驗人員：$name', 'ผู้วิเคราะห์: $name');
+
+  static String bite() => KLFGlobalLanguage.t('咬食量', 'ปริมาณการกัด');
+
+  static String result() => KLFGlobalLanguage.t('化驗結果', 'ผลการวิเคราะห์');
+
+  static String concentration() => KLFGlobalLanguage.t('濃度', 'ความเข้มข้น');
+
+  static String input() => KLFGlobalLanguage.t('輸入', 'ค่าที่ป้อน');
+
+  static String middle() => KLFGlobalLanguage.t('中值', 'ค่ากลาง');
+
+  static String addAmount() => KLFGlobalLanguage.t('需添加量', 'ปริมาณที่ต้องเติม');
+
+  static String noNeedAdd() => KLFGlobalLanguage.t('不用添加', 'ไม่ต้องเติม');
+
+  static String titration() => KLFGlobalLanguage.t('滴定值', 'ค่าการไทเทรต');
+
+  static String directConcentration() =>
+      KLFGlobalLanguage.t('濃度', 'ความเข้มข้นโดยตรง');
+
+  static String enterTitration() =>
+      KLFGlobalLanguage.t('輸入滴定值', 'กรอกค่าการไทเทรต');
+
+  static String enterConcentration() =>
+      KLFGlobalLanguage.t('直接輸入濃度', 'กรอกความเข้มข้นโดยตรง');
+
+  static String unbrownedWeight() =>
+      KLFGlobalLanguage.t('未棕化重量', 'น้ำหนักก่อนบราวนิ่ง');
+
+  static String brownedWeight() =>
+      KLFGlobalLanguage.t('已棕化重量', 'น้ำหนักหลังบราวนิ่ง');
+
+  static String biteDescription() => KLFGlobalLanguage.t(
+    '未棕化重量、已棕化重量由化驗人員輸入，系統自動計算。',
+    'กรอกน้ำหนักก่อนและหลังบราวนิ่ง ระบบจะคำนวณอัตโนมัติ',
+  );
+
+  static String biteFormula() => KLFGlobalLanguage.t(
+    '公式：(未棕化重量－已棕化重量) ÷ 100 × 21910',
+    'สูตร: (น้ำหนักก่อนบราวนิ่ง－น้ำหนักหลังบราวนิ่ง) ÷ 100 × 21910',
+  );
+
+  static String save() =>
+      KLFGlobalLanguage.t('化驗完成並存檔', 'วิเคราะห์เสร็จและบันทึก');
+
+  static String saving() =>
+      KLFGlobalLanguage.t('雲端儲存中...', 'กำลังบันทึกบนคลาวด์...');
+
+  static String savedSuccess() => KLFGlobalLanguage.t(
+    '化驗資料已儲存至雲端，所有授權手機皆可查看',
+    'บันทึกข้อมูลบนคลาวด์แล้ว โทรศัพท์ที่ได้รับอนุญาตทั้งหมดสามารถดูได้',
+  );
+
+  static String saveFailed() => KLFGlobalLanguage.t(
+    '雲端存檔失敗，請確認 Firebase 連線與權限',
+    'บันทึกบนคลาวด์ไม่สำเร็จ กรุณาตรวจสอบ Firebase',
+  );
+
+  static String firstTank() =>
+      KLFGlobalLanguage.t('第一槽｜酸洗槽', 'ถังที่ 1｜ถังกรดล้าง');
+
+  static String secondTank() =>
+      KLFGlobalLanguage.t('第二槽｜清潔槽', 'ถังที่ 2｜ถังทำความสะอาด');
+
+  static String thirdTank() =>
+      KLFGlobalLanguage.t('第三槽｜預浸槽', 'ถังที่ 3｜ถังพรีดิป');
+
+  static String fourthTank() =>
+      KLFGlobalLanguage.t('第四槽｜棕化槽', 'ถังที่ 4｜ถังบราวนิ่ง');
+
+  static String acidDescription() =>
+      KLFGlobalLanguage.t('硫酸、雙氧水', 'กรดซัลฟิวริก, ไฮโดรเจนเปอร์ออกไซด์');
+
+  static String cleanDescription() => KLFGlobalLanguage.t('HL-II', 'HL-II');
+
+  static String preDescription() =>
+      KLFGlobalLanguage.t('雙氧水、CBBA-A', 'ไฮโดรเจนเปอร์ออกไซด์, CBBA-A');
+
+  static String brownDescription() => KLFGlobalLanguage.t(
+    '硫酸、雙氧水、CBBA-A、銅離子',
+    'กรดซัลฟิวริก, ไฮโดรเจนเปอร์ออกไซด์, CBBA-A, ทองแดง',
+  );
+
+  static String tankVolume() => KLFGlobalLanguage.t('槽體積', 'ปริมาตรถัง');
+
+  static String editRecord() =>
+      KLFGlobalLanguage.t('修改化驗資料', 'แก้ไขข้อมูลการวิเคราะห์');
+
+  static String modifiedSync() => KLFGlobalLanguage.t(
+    '修改後會重新計算濃度、需添加量及咬食量，並同步到所有手機。',
+    'หลังแก้ไขระบบจะคำนวณความเข้มข้น ปริมาณเติม และปริมาณการกัดใหม่ และซิงค์กับโทรศัพท์ทั้งหมด',
+  );
+
+  static String saveEdit() => KLFGlobalLanguage.t('儲存修改', 'บันทึกการแก้ไข');
+
+  static String cloudSaving() =>
+      KLFGlobalLanguage.t('雲端儲存中...', 'กำลังบันทึกบนคลาวด์...');
+
+  static String modifySuccess() => KLFGlobalLanguage.t(
+    '修改已儲存至雲端，所有手機同步更新',
+    'บันทึกการแก้ไขบนคลาวด์แล้ว โทรศัพท์ทั้งหมดได้รับการอัปเดต',
+  );
+
+  static String modifyFailed() => KLFGlobalLanguage.t(
+    '修改失敗，請確認 Firebase 連線與權限',
+    'แก้ไขไม่สำเร็จ กรุณาตรวจสอบ Firebase และสิทธิ์',
+  );
+
+  static String viewEdit() => KLFGlobalLanguage.t('查看／修改', 'ดู／แก้ไข');
+
+  static String adminDelete() => KLFGlobalLanguage.t('管理者刪除', 'ลบโดยผู้ดูแล');
+
+  static String adminVerification() =>
+      KLFGlobalLanguage.t('管理者驗證', 'ยืนยันผู้ดูแล');
+
+  static String deleteNeedAdmin() => KLFGlobalLanguage.t(
+    '刪除化驗資料需要管理者權限。',
+    'การลบข้อมูลการวิเคราะห์ต้องใช้สิทธิ์ผู้ดูแล',
+  );
+
+  static String deleteCloudTitle() =>
+      KLFGlobalLanguage.t('刪除雲端存檔', 'ลบข้อมูลบนคลาวด์');
+
+  static String deleteCloudContent() => KLFGlobalLanguage.t(
+    '確定要永久刪除這筆化驗資料嗎？\n\n刪除後所有手機都會同步消失。',
+    'ต้องการลบข้อมูลการวิเคราะห์นี้อย่างถาวรหรือไม่?\n\nหลังลบแล้วข้อมูลจะหายจากโทรศัพท์ทั้งหมด',
+  );
+
+  static String noAnalysisRecords() =>
+      KLFGlobalLanguage.t('目前沒有化驗存檔', 'ยังไม่มีข้อมูลการวิเคราะห์');
+
+  static String cloudSync() => KLFGlobalLanguage.t('雲端同步', 'ซิงค์บนคลาวด์');
+
+  static String offline() => KLFGlobalLanguage.t('離線', 'ออฟไลน์');
+
+  static String cloudReadFailed() => KLFGlobalLanguage.t(
+    '無法讀取雲端化驗資料',
+    'ไม่สามารถอ่านข้อมูลการวิเคราะห์บนคลาวด์',
+  );
+
+  static String cloudReadHint() => KLFGlobalLanguage.t(
+    '請確認網路與 Firebase Firestore 權限設定。',
+    'กรุณาตรวจสอบเครือข่ายและสิทธิ์ Firebase Firestore',
+  );
+
+  static String reconnect() => KLFGlobalLanguage.t('重新連線', 'เชื่อมต่อใหม่');
+
+  static String deleteUserConfirm(String name) => KLFGlobalLanguage.t(
+    '確定要刪除「$name」嗎？\n\n刪除後所有裝置都將無法再使用此名稱登入。',
+    'ต้องการลบ "$name" หรือไม่?\n\nหลังลบแล้วอุปกรณ์ทั้งหมดจะไม่สามารถใช้ชื่อนี้เข้าสู่ระบบได้',
+  );
+
+  static String deleteUserTitle() =>
+      KLFGlobalLanguage.t('刪除授權人員', 'ลบผู้ได้รับอนุญาต');
+
+  static String addUserHint() =>
+      KLFGlobalLanguage.t('例如：王小明', 'เช่น: Wang Xiaoming');
+
+  static String userAdded(String name) =>
+      KLFGlobalLanguage.t('已新增授權人員：$name', 'เพิ่มผู้ได้รับอนุญาตแล้ว: $name');
+
+  static String userDeleted(String name) =>
+      KLFGlobalLanguage.t('已刪除：$name', 'ลบแล้ว: $name');
+
+  static String duplicateUser() =>
+      KLFGlobalLanguage.t('這個名稱已經存在', 'ชื่อนี้มีอยู่แล้ว');
+
+  static String noName() =>
+      KLFGlobalLanguage.t('請輸入授權人員名稱', 'กรุณากรอกชื่อผู้ได้รับอนุญาต');
+
+  static String firebaseUsersFailed() => KLFGlobalLanguage.t(
+    '無法讀取 Firebase 授權名單',
+    'ไม่สามารถอ่านรายชื่อผู้ได้รับอนุญาตจาก Firebase',
+  );
+
+  static String addFailed() => KLFGlobalLanguage.t(
+    '新增失敗，請確認 Firebase 連線',
+    'เพิ่มไม่สำเร็จ กรุณาตรวจสอบ Firebase',
+  );
+
+  static String deleteFailed() => KLFGlobalLanguage.t(
+    '刪除失敗，請確認 Firebase 連線',
+    'ลบไม่สำเร็จ กรุณาตรวจสอบ Firebase',
+  );
+
+  static String deviceCleared() => KLFGlobalLanguage.t(
+    '本設備登入記錄已清除',
+    'ล้างประวัติการเข้าสู่ระบบของอุปกรณ์นี้แล้ว',
+  );
+
+  static String userUpdated() => KLFGlobalLanguage.t(
+    '已從雲端刪除，所有手機同步更新',
+    'ลบจากคลาวด์แล้ว โทรศัพท์ทั้งหมดได้รับการอัปเดต',
+  );
+
+  static String recordDeleteFailed() => KLFGlobalLanguage.t(
+    '刪除失敗，請確認 Firebase 權限',
+    'ลบไม่สำเร็จ กรุณาตรวจสอบสิทธิ์ Firebase',
+  );
+}
 
 // ============================================================
 // App
@@ -402,15 +627,39 @@ class KLFApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: KLFConfig.appName,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6B3F22)),
-        scaffoldBackgroundColor: const Color(0xFFF5F6F7),
-      ),
-      home: const StartupPage(),
+    return ValueListenableBuilder<KLFLanguage>(
+      valueListenable: KLFGlobalLanguage.notifier,
+      builder: (_, __, ___) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: KLFConfig.appName,
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF6B3F22),
+            ),
+            scaffoldBackgroundColor: const Color(0xFFF5F6F7),
+          ),
+          home: const StartupPage(),
+        );
+      },
+    );
+  }
+}
+
+// ============================================================
+// 共用語言按鈕
+// ============================================================
+
+class LanguageButton extends StatelessWidget {
+  const LanguageButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: KLFGlobalLanguage.toggle,
+      icon: const Icon(Icons.language, size: 18),
+      label: Text(KLFText.languageButton()),
     );
   }
 }
@@ -440,18 +689,19 @@ class _StartupPageState extends State<StartupPage> {
     final deviceUser = LocalStorageHelper.getDeviceUser();
 
     if (deviceUser != null && deviceUser.trim().isNotEmpty) {
-      final authorized = await FirebaseUserManager.isAuthorized(deviceUser);
+      try {
+        final authorized = await FirebaseUserManager.isAuthorized(deviceUser);
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      if (authorized) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => HomePage(userName: deviceUser)),
-        );
-
-        return;
-      }
+        if (authorized) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => HomePage(userName: deviceUser)),
+          );
+          return;
+        }
+      } catch (_) {}
 
       LocalStorageHelper.clearDeviceUser();
     }
@@ -485,32 +735,15 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _nameController = TextEditingController();
 
   String _errorMessage = '';
-
   bool _loading = false;
-
-  KLFLanguage _language = KLFLanguage.chinese;
-
-  void _toggleLanguage() {
-    setState(() {
-      _language = KLFText.isThai(_language)
-          ? KLFLanguage.chinese
-          : KLFLanguage.thai;
-
-      // 切換語言時清除錯誤訊息。
-      _errorMessage = '';
-    });
-  }
 
   Future<void> _login() async {
     final name = _nameController.text.trim();
 
-    // 尚未按登入以前不顯示任何錯誤。
-    // 只有使用者實際嘗試登入才提醒。
     if (name.isEmpty) {
       setState(() {
-        _errorMessage = KLFText.enterAuthorizedName(_language);
+        _errorMessage = KLFText.enterAuthorizedName();
       });
-
       return;
     }
 
@@ -533,14 +766,14 @@ class _LoginPageState extends State<LoginPage> {
         );
       } else {
         setState(() {
-          _errorMessage = KLFText.unauthorized(_language);
+          _errorMessage = KLFText.unauthorized();
         });
       }
     } catch (_) {
       if (!mounted) return;
 
       setState(() {
-        _errorMessage = KLFText.firebaseError(_language);
+        _errorMessage = KLFText.firebaseError();
       });
     } finally {
       if (mounted) {
@@ -551,10 +784,133 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _openAdminLogin() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AdminLoginPage()),
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<KLFLanguage>(
+      valueListenable: KLFGlobalLanguage.notifier,
+      builder: (_, __, ___) {
+        return Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(30),
+                      child: Column(
+                        children: [
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: const LanguageButton(),
+                          ),
+                          const SizedBox(height: 5),
+                          const Icon(
+                            Icons.science_outlined,
+                            size: 70,
+                            color: Color(0xFF6B3F22),
+                          ),
+                          const SizedBox(height: 15),
+                          Text(
+                            KLFText.loginTitle(),
+                            style: const TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            KLFText.loginSubtitle(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 35),
+                          TextField(
+                            controller: _nameController,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _login(),
+                            enabled: !_loading,
+                            decoration: InputDecoration(
+                              labelText: KLFText.authorizedName(),
+                              hintText: KLFText.authorizedHint(),
+                              prefixIcon: const Icon(Icons.person_outline),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: _loading ? null : _login,
+                              child: _loading
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                      ),
+                                    )
+                                  : Text(
+                                      KLFText.login(),
+                                      style: const TextStyle(fontSize: 18),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+                          Text(
+                            KLFText.firstLoginHint(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                          if (_errorMessage.isNotEmpty) ...[
+                            const SizedBox(height: 15),
+                            Text(
+                              _errorMessage,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ],
+                          const SizedBox(height: 25),
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AdminLoginPage(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.admin_panel_settings_outlined,
+                            ),
+                            label: Text(KLFText.adminLogin()),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            KLFConfig.version,
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -562,131 +918,6 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _nameController.dispose();
     super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final language = _language;
-
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: Card(
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(30),
-                  child: Column(
-                    children: [
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: OutlinedButton.icon(
-                          onPressed: _toggleLanguage,
-                          icon: const Icon(Icons.language, size: 18),
-                          label: Text(KLFText.languageButton(language)),
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      const Icon(
-                        Icons.science_outlined,
-                        size: 70,
-                        color: Color(0xFF6B3F22),
-                      ),
-                      const SizedBox(height: 15),
-                      Text(
-                        KLFText.loginTitle(language),
-                        style: const TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        KLFText.loginSubtitle(language),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 35),
-                      TextField(
-                        controller: _nameController,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _login(),
-                        enabled: !_loading,
-                        decoration: InputDecoration(
-                          labelText: KLFText.authorizedName(language),
-                          hintText: KLFText.authorizedHint(language),
-                          prefixIcon: const Icon(Icons.person_outline),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: _loading ? null : _login,
-                          child: _loading
-                              ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                )
-                              : Text(
-                                  KLFText.login(language),
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      Text(
-                        KLFText.firstLoginHint(language),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-
-                      // 只有按登入後發生錯誤才顯示。
-                      if (_errorMessage.isNotEmpty) ...[
-                        const SizedBox(height: 15),
-                        Text(
-                          _errorMessage,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      ],
-
-                      const SizedBox(height: 25),
-                      TextButton.icon(
-                        onPressed: _openAdminLogin,
-                        icon: const Icon(Icons.admin_panel_settings_outlined),
-                        label: Text(KLFText.adminLogin(language)),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        KLFConfig.version,
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -707,88 +938,99 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   String _errorMessage = '';
 
   void _login() {
-    final password = _passwordController.text;
-
-    if (password == KLFConfig.adminPassword) {
+    if (_passwordController.text == KLFConfig.adminPassword) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const AdminPage()),
       );
     } else {
       setState(() {
-        _errorMessage = '管理者密碼錯誤';
+        _errorMessage = KLFText.wrongAdminPassword();
       });
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<KLFLanguage>(
+      valueListenable: KLFGlobalLanguage.notifier,
+      builder: (_, __, ___) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(KLFText.adminLogin()),
+            actions: const [
+              Padding(
+                padding: EdgeInsets.only(right: 10),
+                child: LanguageButton(),
+              ),
+            ],
+          ),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 450),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.admin_panel_settings, size: 65),
+                        const SizedBox(height: 20),
+                        Text(
+                          KLFText.adminLogin(),
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 25),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _login(),
+                          decoration: InputDecoration(
+                            labelText: KLFText.adminPassword(),
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: _login,
+                            child: Text(KLFText.loginAdmin()),
+                          ),
+                        ),
+                        if (_errorMessage.isNotEmpty) ...[
+                          const SizedBox(height: 15),
+                          Text(
+                            _errorMessage,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
   void dispose() {
     _passwordController.dispose();
     super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('管理者登入')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 450),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.admin_panel_settings, size: 65),
-                    const SizedBox(height: 20),
-                    const Text(
-                      '管理者登入',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 25),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _login(),
-                      decoration: InputDecoration(
-                        labelText: '管理者密碼',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _login,
-                        child: const Text('登入管理者'),
-                      ),
-                    ),
-                    if (_errorMessage.isNotEmpty) ...[
-                      const SizedBox(height: 15),
-                      Text(
-                        _errorMessage,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -838,7 +1080,7 @@ class _AdminPageState extends State<AdminPage> {
         _loading = false;
       });
 
-      _showMessage('無法讀取 Firebase 授權名單');
+      _showMessage(KLFText.firebaseUsersFailed());
     }
   }
 
@@ -846,7 +1088,7 @@ class _AdminPageState extends State<AdminPage> {
     final name = _nameController.text.trim();
 
     if (name.isEmpty) {
-      _showMessage('請輸入授權人員名稱');
+      _showMessage(KLFText.noName());
       return;
     }
 
@@ -860,7 +1102,7 @@ class _AdminPageState extends State<AdminPage> {
       if (!mounted) return;
 
       if (!added) {
-        _showMessage('這個名稱已經存在');
+        _showMessage(KLFText.duplicateUser());
         return;
       }
 
@@ -870,11 +1112,11 @@ class _AdminPageState extends State<AdminPage> {
 
       if (!mounted) return;
 
-      _showMessage('已新增授權人員：$name');
+      _showMessage(KLFText.userAdded(name));
     } catch (_) {
       if (!mounted) return;
 
-      _showMessage('新增失敗，請確認 Firebase 連線');
+      _showMessage(KLFText.addFailed());
     } finally {
       if (mounted) {
         setState(() {
@@ -889,28 +1131,23 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       builder: (_) {
         return AlertDialog(
-          title: const Text('刪除授權人員'),
-          content: Text(
-            '確定要刪除「$name」嗎？\n\n'
-            '刪除後所有裝置都將無法再使用此名稱登入。',
-          ),
+          title: Text(KLFText.deleteUserTitle()),
+          content: Text(KLFText.deleteUserConfirm(name)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
+              child: Text(KLFText.cancel()),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('刪除'),
+              child: Text(KLFText.delete()),
             ),
           ],
         );
       },
     );
 
-    if (confirmed != true) {
-      return;
-    }
+    if (confirmed != true) return;
 
     try {
       await FirebaseUserManager.deleteUser(name);
@@ -921,18 +1158,17 @@ class _AdminPageState extends State<AdminPage> {
 
       if (!mounted) return;
 
-      _showMessage('已刪除：$name');
+      _showMessage(KLFText.userDeleted(name));
     } catch (_) {
       if (!mounted) return;
 
-      _showMessage('刪除失敗，請確認 Firebase 連線');
+      _showMessage(KLFText.deleteFailed());
     }
   }
 
   void _clearCurrentDevice() {
     LocalStorageHelper.clearDeviceUser();
-
-    _showMessage('本設備登入記錄已清除');
+    _showMessage(KLFText.deviceCleared());
   }
 
   void _showMessage(String message) {
@@ -942,201 +1178,207 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('管理者設定'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-        actions: [
-          IconButton(
-            tooltip: '重新整理',
-            icon: const Icon(Icons.refresh),
-            onPressed: _loading ? null : _loadUsers,
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 850),
-          child: ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '新增授權人員',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        '新增後會同步到 Firebase，其他手機也可以使用。',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _nameController,
-                              enabled: !_adding,
-                              onSubmitted: (_) => _addUser(),
-                              decoration: InputDecoration(
-                                labelText: '授權人員名稱',
-                                hintText: '例如：王小明',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            height: 52,
-                            child: ElevatedButton.icon(
-                              onPressed: _adding ? null : _addUser,
-                              icon: _adding
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.add),
-                              label: const Text('新增'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              '已授權人員',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          if (_loading)
-                            const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      if (!_loading && _users.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Center(
-                            child: Text(
-                              '目前尚未建立授權人員',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        ),
-                      ..._users.map(
-                        (name) => ListTile(
-                          leading: const CircleAvatar(
-                            child: Icon(Icons.person),
-                          ),
-                          title: Text(
-                            name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: const Text(
-                            'Firebase 雲端授權',
-                            style: TextStyle(color: Colors.green),
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.red,
-                            ),
-                            onPressed: () {
-                              _deleteUser(name);
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.devices),
-                  title: const Text('本設備登入記錄'),
-                  subtitle: Text(
-                    LocalStorageHelper.getDeviceUser() ?? '目前沒有記錄',
-                  ),
-                  trailing: TextButton(
-                    onPressed: _clearCurrentDevice,
-                    child: const Text('清除'),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.cloud_done, color: Colors.green),
-                  title: const Text('化驗資料來源'),
-                  subtitle: const Text('Firebase Cloud Firestore'),
-                  trailing: const Text(
-                    '雲端共享',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.info_outline),
-                  title: const Text('系統版本'),
-                  trailing: Text(KLFConfig.version),
-                ),
+    return ValueListenableBuilder<KLFLanguage>(
+      valueListenable: KLFGlobalLanguage.notifier,
+      builder: (_, __, ___) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(KLFText.adminSettings()),
+            actions: [
+              const LanguageButton(),
+              IconButton(
+                tooltip: KLFText.refresh(),
+                icon: const Icon(Icons.refresh),
+                onPressed: _loading ? null : _loadUsers,
               ),
             ],
           ),
-        ),
-      ),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 850),
+              child: ListView(
+                padding: const EdgeInsets.all(24),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            KLFText.addAuthorizedUser(),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            KLFText.addAuthorizedDescription(),
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _nameController,
+                                  enabled: !_adding,
+                                  onSubmitted: (_) => _addUser(),
+                                  decoration: InputDecoration(
+                                    labelText: KLFText.authorizedName(),
+                                    hintText: KLFText.addUserHint(),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                height: 52,
+                                child: ElevatedButton.icon(
+                                  onPressed: _adding ? null : _addUser,
+                                  icon: _adding
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.add),
+                                  label: Text(KLFText.add()),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  KLFText.authorizedUsers(),
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              if (_loading)
+                                const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 15),
+                          if (!_loading && _users.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Center(
+                                child: Text(
+                                  KLFText.noAuthorizedUsers(),
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                            ),
+                          ..._users.map(
+                            (name) => ListTile(
+                              leading: const CircleAvatar(
+                                child: Icon(Icons.person),
+                              ),
+                              title: Text(
+                                name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                KLFText.firebaseAuthorization(),
+                                style: const TextStyle(color: Colors.green),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () => _deleteUser(name),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.devices),
+                      title: Text(KLFText.deviceLoginRecord()),
+                      subtitle: Text(
+                        LocalStorageHelper.getDeviceUser() ??
+                            KLFText.noRecord(),
+                      ),
+                      trailing: TextButton(
+                        onPressed: _clearCurrentDevice,
+                        child: Text(KLFText.clear()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.cloud_done,
+                        color: Colors.green,
+                      ),
+                      title: Text(KLFText.cloudSource()),
+                      subtitle: const Text('Firebase Cloud Firestore'),
+                      trailing: Text(
+                        KLFText.cloudShared(),
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.info_outline),
+                      title: Text(KLFText.systemVersion()),
+                      trailing: const Text(KLFConfig.version),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 }
 
@@ -1154,21 +1396,18 @@ class HomePage extends StatelessWidget {
       context: context,
       builder: (_) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.qr_code_2),
-              SizedBox(width: 10),
-              Text('KLF-棕化網站 QR Code'),
+              const Icon(Icons.qr_code_2),
+              const SizedBox(width: 10),
+              Expanded(child: Text(KLFText.qrTitle())),
             ],
           ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  '使用手機掃描 QR Code 即可開啟 KLF-棕化網站',
-                  textAlign: TextAlign.center,
-                ),
+                Text(KLFText.qrDescription(), textAlign: TextAlign.center),
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -1181,10 +1420,10 @@ class HomePage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  '掃描後仍需使用已授權名稱登入',
+                Text(
+                  KLFText.qrLoginHint(),
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: Colors.grey),
                 ),
               ],
             ),
@@ -1192,7 +1431,7 @@ class HomePage extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('關閉'),
+              child: Text(KLFText.close()),
             ),
           ],
         );
@@ -1209,139 +1448,174 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'KLF-棕化',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            tooltip: '管理者',
-            icon: const Icon(Icons.admin_panel_settings_outlined),
-            onPressed: () => openAdmin(context),
+    return ValueListenableBuilder<KLFLanguage>(
+      valueListenable: KLFGlobalLanguage.notifier,
+      builder: (_, __, ___) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(
+              KLFText.homeTitle(),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            actions: [
+              IconButton(
+                tooltip: KLFText.admin(),
+                icon: const Icon(Icons.admin_panel_settings_outlined),
+                onPressed: () => openAdmin(context),
+              ),
+              IconButton(
+                tooltip: KLFText.qrInvite(),
+                icon: const Icon(Icons.qr_code_2),
+                onPressed: () => showWebsiteQrCode(context),
+              ),
+              const LanguageButton(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Center(
+                  child: Text(
+                    userName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
           ),
-          IconButton(
-            tooltip: '邀請開啟網站',
-            icon: const Icon(Icons.qr_code_2),
-            onPressed: () => showWebsiteQrCode(context),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Center(
-              child: Text(
-                userName,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: ListView(
+                  children: [
+                    Text(
+                      KLFText.productionLine(),
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      KLFText.chooseLine(),
+                      style: const TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                    const SizedBox(height: 30),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth < 650) {
+                          return Column(
+                            children: [
+                              _buildLineCard(
+                                context,
+                                'A線',
+                                KLFText.lineA(),
+                                KLFText.lineASubtitle(),
+                              ),
+                              const SizedBox(height: 18),
+                              _buildLineCard(
+                                context,
+                                'B線',
+                                KLFText.lineB(),
+                                KLFText.lineBSubtitle(),
+                              ),
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: _buildLineCard(
+                                context,
+                                'A線',
+                                KLFText.lineA(),
+                                KLFText.lineASubtitle(),
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              child: _buildLineCard(
+                                context,
+                                'B線',
+                                KLFText.lineB(),
+                                KLFText.lineBSubtitle(),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.folder_open,
+                          color: Color(0xFF6B3F22),
+                        ),
+                        title: Text(
+                          KLFText.records(),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(KLFText.recordsDescription()),
+                        trailing: const Icon(Icons.arrow_forward),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RecordsPage(userName: userName),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.access_time,
+                              color: Color(0xFF6B3F22),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    KLFText.analysisCycle(),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(KLFText.analysisCycleDescription()),
+                                ],
+                              ),
+                            ),
+                            const Text(
+                              KLFConfig.version,
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ListView(
-              children: [
-                const Text(
-                  '棕化水平生產線',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '請選擇需要進行藥水分析的生產線',
-                  style: TextStyle(color: Colors.grey, fontSize: 16),
-                ),
-                const SizedBox(height: 30),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.maxWidth < 650) {
-                      return Column(
-                        children: [
-                          _buildLineCard(context, 'A線', '棕化水平生產線 A'),
-                          const SizedBox(height: 18),
-                          _buildLineCard(context, 'B線', '棕化水平生產線 B'),
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: _buildLineCard(context, 'A線', '棕化水平生產線 A'),
-                        ),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          child: _buildLineCard(context, 'B線', '棕化水平生產線 B'),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.folder_open,
-                      color: Color(0xFF6B3F22),
-                    ),
-                    title: const Text(
-                      '化驗存檔',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: const Text('查看所有手機共享的歷史化驗資料'),
-                    trailing: const Icon(Icons.arrow_forward),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RecordsPage(userName: userName),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time, color: Color(0xFF6B3F22)),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '化驗週期',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              SizedBox(height: 4),
-                              Text('每 4 小時進行一次藥水分析'),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          KLFConfig.version,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildLineCard(
     BuildContext context,
     String lineName,
+    String title,
     String subtitle,
   ) {
     return Card(
@@ -1369,7 +1643,7 @@ class HomePage extends StatelessWidget {
               ),
               const SizedBox(height: 15),
               Text(
-                lineName,
+                title,
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -1378,11 +1652,14 @@ class HomePage extends StatelessWidget {
               const SizedBox(height: 5),
               Text(subtitle, style: const TextStyle(color: Colors.grey)),
               const SizedBox(height: 20),
-              const Row(
+              Row(
                 children: [
-                  Text('進入化驗', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Spacer(),
-                  Icon(Icons.arrow_forward),
+                  Text(
+                    KLFText.enterAnalysis(),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.arrow_forward),
                 ],
               ),
             ],
@@ -1416,7 +1693,7 @@ class ChemicalSetting {
 }
 
 Map<String, ChemicalSetting> getSettings(String line) {
-  final bool isA = line == 'A線';
+  final isA = line == 'A線';
 
   return {
     'acid_sulfuric': ChemicalSetting(
@@ -1427,7 +1704,7 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
-    'acid_h2o2': ChemicalSetting(
+    'acid_h2o2': const ChemicalSetting(
       name: '雙氧水',
       middle: 0.5,
       factor: 0.47,
@@ -1508,15 +1785,19 @@ double getTankVolume(String line, String tank) {
 }
 
 // ============================================================
-// 數值處理
+// 數值
 // ============================================================
 
 double roundToTenth(double value) {
   return (value * 10).round() / 10;
 }
 
+String formatNumber(double value) {
+  return value.toStringAsFixed(1);
+}
+
 // ============================================================
-// 化驗結果固定順序
+// 化驗順序
 // ============================================================
 
 const List<String> analysisOrder = [
@@ -1559,7 +1840,76 @@ const List<Map<String, dynamic>> tankOrder = [
 ];
 
 // ============================================================
-// 化驗頁面
+// 藥品泰文
+// ============================================================
+
+String chemicalName(String name) {
+  if (!KLFGlobalLanguage.isThai) return name;
+
+  switch (name) {
+    case '硫酸':
+      return 'กรดซัลฟิวริก';
+    case '雙氧水':
+      return 'ไฮโดรเจนเปอร์ออกไซด์';
+    case '銅離子':
+      return 'ทองแดง';
+    case '棕化':
+      return 'บราวนิ่ง';
+    case '酸洗':
+      return 'กรดล้าง';
+    case '清潔':
+      return 'ทำความสะอาด';
+    case '預浸':
+      return 'พรีดิป';
+    case '棕化槽':
+      return 'ถังบราวนิ่ง';
+    case '酸洗槽':
+      return 'ถังกรดล้าง';
+    case '清潔槽':
+      return 'ถังทำความสะอาด';
+    case '預浸槽':
+      return 'ถังพรีดิป';
+    default:
+      return name;
+  }
+}
+
+String tankTitle(String title) {
+  if (!KLFGlobalLanguage.isThai) return title;
+
+  switch (title) {
+    case '第一槽｜酸洗槽':
+      return KLFText.firstTank();
+    case '第二槽｜清潔槽':
+      return KLFText.secondTank();
+    case '第三槽｜預浸槽':
+      return KLFText.thirdTank();
+    case '第四槽｜棕化槽':
+      return KLFText.fourthTank();
+    default:
+      return title;
+  }
+}
+
+String tankDescription(String description) {
+  if (!KLFGlobalLanguage.isThai) return description;
+
+  switch (description) {
+    case '硫酸、雙氧水':
+      return KLFText.acidDescription();
+    case 'HL-II':
+      return KLFText.cleanDescription();
+    case '雙氧水、CBBA-A':
+      return KLFText.preDescription();
+    case '硫酸、雙氧水、CBBA-A、銅離子':
+      return KLFText.brownDescription();
+    default:
+      return description;
+  }
+}
+
+// ============================================================
+// 化驗頁
 // ============================================================
 
 class AnalysisPage extends StatefulWidget {
@@ -1579,21 +1929,16 @@ class AnalysisPage extends StatefulWidget {
 class _AnalysisPageState extends State<AnalysisPage> {
   final Map<String, TextEditingController> controllers = {};
 
-  final TextEditingController beforeWeightController = TextEditingController();
-
-  final TextEditingController afterWeightController = TextEditingController();
+  final beforeWeightController = TextEditingController();
+  final afterWeightController = TextEditingController();
 
   bool _saving = false;
-
-  KLFLanguage _language = KLFLanguage.chinese;
 
   @override
   void initState() {
     super.initState();
 
-    final settings = getSettings(widget.lineName);
-
-    for (final key in settings.keys) {
+    for (final key in getSettings(widget.lineName).keys) {
       controllers[key] = TextEditingController();
     }
   }
@@ -1605,15 +1950,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
   double? concentration(String key, String value) {
     final setting = getSettings(widget.lineName)[key];
 
-    if (setting == null) {
-      return null;
-    }
+    if (setting == null) return null;
 
     final number = parse(value);
 
-    if (number == null) {
-      return null;
-    }
+    if (number == null) return null;
 
     if (setting.direct) {
       return roundToTenth(number);
@@ -1637,27 +1978,46 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final current = concentration(key, value);
 
-    if (current == null) {
-      return null;
-    }
+    if (current == null) return null;
 
     final middle = roundToTenth(setting.middle!);
-
     final actual = roundToTenth(current);
 
-    if (actual >= middle) {
-      return 0;
-    }
+    if (actual >= middle) return 0;
 
     final deficit = roundToTenth(middle - actual);
-
     final steps = (deficit * 10).round();
 
-    if (steps <= 0) {
-      return 0;
-    }
+    if (steps <= 0) return 0;
 
     return roundToTenth(steps * setting.addPerPoint);
+  }
+
+  double? biteAmount() {
+    final before = parse(beforeWeightController.text);
+    final after = parse(afterWeightController.text);
+
+    if (before == null || after == null) return null;
+
+    return (before - after) / 100 * 21910;
+  }
+
+  String displayConcentration(String key, String value) {
+    final result = concentration(key, value);
+
+    return result == null ? '-' : formatNumber(result);
+  }
+
+  String displayMiddle(String key) {
+    final setting = getSettings(widget.lineName)[key];
+
+    if (setting == null) return '-';
+
+    if (setting.middle == null) {
+      return KLFGlobalLanguage.t('無中值', 'ไม่มีค่ากลาง');
+    }
+
+    return formatNumber(roundToTenth(setting.middle!));
   }
 
   String displayAddAmount(String key, String value) {
@@ -1669,57 +2029,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final amount = addAmount(key, value);
 
-    if (amount == null) {
-      return '-';
-    }
+    if (amount == null) return '-';
 
     if (amount <= 0) {
-      return KLFText.noNeedAdd(_language);
+      return KLFText.noNeedAdd();
     }
 
     return '${formatNumber(amount)} ${setting.unit}';
   }
 
-  String displayConcentration(String key, String value) {
-    final result = concentration(key, value);
-
-    if (result == null) {
-      return '-';
-    }
-
-    return formatNumber(result);
-  }
-
-  String displayMiddle(String key) {
-    final setting = getSettings(widget.lineName)[key];
-
-    if (setting == null) {
-      return '-';
-    }
-
-    if (setting.middle == null) {
-      return _language == KLFLanguage.thai ? 'ไม่มีค่ากลาง' : '無中值';
-    }
-
-    return formatNumber(roundToTenth(setting.middle!));
-  }
-
-  double? biteAmount() {
-    final before = parse(beforeWeightController.text);
-
-    final after = parse(afterWeightController.text);
-
-    if (before == null || after == null) {
-      return null;
-    }
-
-    return (before - after) / 100 * 21910;
-  }
-
   Future<void> saveRecord() async {
-    if (_saving) {
-      return;
-    }
+    if (_saving) return;
 
     setState(() {
       _saving = true;
@@ -1727,12 +2047,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     try {
       final settings = getSettings(widget.lineName);
-
       final chemicals = <String, dynamic>{};
 
       for (final entry in settings.entries) {
         final key = entry.key;
-
         final value = controllers[key]!.text.trim();
 
         final concentrationValue = concentration(key, value);
@@ -1754,22 +2072,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
       final bite = biteAmount();
 
-      final record = <String, dynamic>{
+      await FirebaseAnalysisManager.addRecord({
         'line': widget.lineName,
         'user': widget.userName,
         'beforeWeight': beforeWeightController.text.trim(),
         'afterWeight': afterWeightController.text.trim(),
         'biteAmount': bite == null ? '' : formatNumber(bite),
         'chemicals': chemicals,
-      };
-
-      await FirebaseAnalysisManager.addRecord(record);
+      });
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(KLFText.savedSuccess(_language)),
+          content: Text(KLFText.savedSuccess()),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -1782,12 +2098,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
       afterWeightController.clear();
 
       setState(() {});
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(KLFText.saveFailed(_language)),
+          content: Text(KLFText.saveFailed()),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -1802,19 +2118,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   Widget inputField(String key) {
     final setting = getSettings(widget.lineName)[key]!;
-
     final controller = controllers[key]!;
-
-    final isThai = _language == KLFLanguage.thai;
 
     return SizedBox(
       height: 48,
       child: TextField(
         controller: controller,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        onChanged: (_) {
-          setState(() {});
-        },
+        onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
@@ -1822,22 +2133,22 @@ class _AnalysisPageState extends State<AnalysisPage> {
             vertical: 8,
           ),
           labelText: setting.direct
-              ? '${setting.name}｜${KLFText.directConcentration(_language)}'
-              : '${setting.name}｜${KLFText.titration(_language)}',
+              ? '${chemicalName(setting.name)}｜${KLFText.directConcentration()}'
+              : '${chemicalName(setting.name)}｜${KLFText.titration()}',
           hintText: setting.direct
-              ? KLFText.enterConcentration(_language)
-              : KLFText.enterTitration(_language),
+              ? KLFText.enterConcentration()
+              : KLFText.enterTitration(),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
   }
 
-  Widget _resultBox(String title, String value) {
+  Widget resultBox(String title, String value) {
     Color? valueColor;
 
-    if (title == KLFText.addAmount(_language)) {
-      if (value == KLFText.noNeedAdd(_language)) {
+    if (title == KLFText.addAmount()) {
+      if (value == KLFText.noNeedAdd()) {
         valueColor = Colors.green;
       } else if (value != '-') {
         valueColor = Colors.red;
@@ -1851,7 +2162,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
         borderRadius: BorderRadius.circular(7),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey)),
@@ -1873,9 +2183,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
-
     final controller = controllers[key]!;
-
     final value = controller.text;
 
     return Card(
@@ -1886,14 +2194,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
           builder: (context, constraints) {
             if (constraints.maxWidth < 700) {
               return Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
                       Expanded(
                         flex: 2,
                         child: Text(
-                          setting.name,
+                          chemicalName(setting.name),
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -1907,22 +2214,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: _resultBox(
-                          KLFText.middle(_language),
-                          displayMiddle(key),
-                        ),
+                        child: resultBox(KLFText.middle(), displayMiddle(key)),
                       ),
                       const SizedBox(width: 4),
                       Expanded(
-                        child: _resultBox(
-                          KLFText.concentration(_language),
+                        child: resultBox(
+                          KLFText.concentration(),
                           displayConcentration(key, value),
                         ),
                       ),
                       const SizedBox(width: 4),
                       Expanded(
-                        child: _resultBox(
-                          KLFText.addAmount(_language),
+                        child: resultBox(
+                          KLFText.addAmount(),
                           displayAddAmount(key, value),
                         ),
                       ),
@@ -1937,7 +2241,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 Expanded(
                   flex: 2,
                   child: Text(
-                    setting.name,
+                    chemicalName(setting.name),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -1947,22 +2251,19 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 Expanded(flex: 3, child: inputField(key)),
                 const SizedBox(width: 5),
                 Expanded(
-                  child: _resultBox(
-                    KLFText.middle(_language),
-                    displayMiddle(key),
-                  ),
+                  child: resultBox(KLFText.middle(), displayMiddle(key)),
                 ),
                 const SizedBox(width: 5),
                 Expanded(
-                  child: _resultBox(
-                    KLFText.concentration(_language),
+                  child: resultBox(
+                    KLFText.concentration(),
                     displayConcentration(key, value),
                   ),
                 ),
                 const SizedBox(width: 5),
                 Expanded(
-                  child: _resultBox(
-                    KLFText.addAmount(_language),
+                  child: resultBox(
+                    KLFText.addAmount(),
                     displayAddAmount(key, value),
                   ),
                 ),
@@ -1994,7 +2295,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
               children: [
                 Expanded(
                   child: Text(
-                    title,
+                    tankTitle(title),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -2011,7 +2312,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     borderRadius: BorderRadius.circular(7),
                   ),
                   child: Text(
-                    '${KLFText.tankVolume(_language)}：${formatNumber(volume)} L',
+                    '${KLFText.tankVolume()}：'
+                    '${formatNumber(volume)} L',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -2021,9 +2323,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
               ],
             ),
             const SizedBox(height: 1),
-            Text(description, style: const TextStyle(color: Colors.grey)),
+            Text(
+              tankDescription(description),
+              style: const TextStyle(color: Colors.grey),
+            ),
             const SizedBox(height: 7),
-            ...keys.map((key) => chemicalRow(key)),
+            ...keys.map(chemicalRow),
           ],
         ),
       ),
@@ -2040,12 +2345,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              KLFText.bite(_language),
+              KLFText.bite(),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 2),
             Text(
-              KLFText.biteDescription(_language),
+              KLFText.biteDescription(),
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 8),
@@ -2059,20 +2364,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      onChanged: (_) {
-                        setState(() {});
-                      },
+                      onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        labelText: KLFText.unbrownedWeight(_language),
+                        labelText: KLFText.unbrownedWeight(),
                         suffixText: 'g',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
@@ -2086,20 +2383,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      onChanged: (_) {
-                        setState(() {});
-                      },
+                      onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        labelText: KLFText.brownedWeight(_language),
+                        labelText: KLFText.brownedWeight(),
                         suffixText: 'g',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
@@ -2118,7 +2407,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 children: [
                   Expanded(
                     child: Text(
-                      KLFText.bite(_language),
+                      KLFText.bite(),
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -2134,7 +2423,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             ),
             const SizedBox(height: 4),
             Text(
-              KLFText.biteFormula(_language),
+              KLFText.biteFormula(),
               style: const TextStyle(color: Colors.grey, fontSize: 11),
             ),
           ],
@@ -2143,141 +2432,122 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  void _toggleLanguage() {
-    setState(() {
-      _language = KLFText.isThai(_language)
-          ? KLFLanguage.chinese
-          : KLFLanguage.thai;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final language = _language;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(KLFText.analysisTitle(language, widget.lineName)),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Center(
-              child: OutlinedButton.icon(
-                onPressed: _toggleLanguage,
-                icon: const Icon(Icons.language, size: 18),
-                label: Text(KLFText.languageButton(language)),
+    return ValueListenableBuilder<KLFLanguage>(
+      valueListenable: KLFGlobalLanguage.notifier,
+      builder: (_, __, ___) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(KLFText.analysisTitle(widget.lineName)),
+            actions: const [LanguageButton()],
+          ),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: ListView(
+                padding: const EdgeInsets.all(10),
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.person_outline, size: 20),
+                          const SizedBox(width: 7),
+                          Text(
+                            KLFText.analyst(widget.userName),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  biteCard(),
+                  const SizedBox(height: 7),
+                  tankCard(
+                    title: tankOrder[0]['title'],
+                    description: tankOrder[0]['description'],
+                    keys: List<String>.from(tankOrder[0]['keys']),
+                    volumeKey: tankOrder[0]['volumeKey'],
+                  ),
+                  const SizedBox(height: 7),
+                  tankCard(
+                    title: tankOrder[1]['title'],
+                    description: tankOrder[1]['description'],
+                    keys: List<String>.from(tankOrder[1]['keys']),
+                    volumeKey: tankOrder[1]['volumeKey'],
+                  ),
+                  const SizedBox(height: 7),
+                  tankCard(
+                    title: tankOrder[2]['title'],
+                    description: tankOrder[2]['description'],
+                    keys: List<String>.from(tankOrder[2]['keys']),
+                    volumeKey: tankOrder[2]['volumeKey'],
+                  ),
+                  const SizedBox(height: 7),
+                  tankCard(
+                    title: tankOrder[3]['title'],
+                    description: tankOrder[3]['description'],
+                    keys: List<String>.from(tankOrder[3]['keys']),
+                    volumeKey: tankOrder[3]['volumeKey'],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: _saving ? null : saveRecord,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.cloud_upload_outlined),
+                      label: Text(
+                        _saving ? KLFText.saving() : KLFText.save(),
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  SizedBox(
+                    height: 46,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                RecordsPage(userName: widget.userName),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.folder_open),
+                      label: Text(KLFText.records()),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  Center(
+                    child: Text(
+                      '${KLFConfig.appName} '
+                      '${KLFConfig.version}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: ListView(
-            padding: const EdgeInsets.all(10),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 9,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.person_outline, size: 20),
-                      const SizedBox(width: 7),
-                      Text(
-                        KLFText.analyst(language, widget.userName),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 7),
-              biteCard(),
-              const SizedBox(height: 7),
-              tankCard(
-                title: KLFText.firstTank(language),
-                description: KLFText.acidDescription(language),
-                keys: const ['acid_sulfuric', 'acid_h2o2'],
-                volumeKey: 'acid',
-              ),
-              const SizedBox(height: 7),
-              tankCard(
-                title: KLFText.secondTank(language),
-                description: KLFText.cleanDescription(language),
-                keys: const ['clean_hl2'],
-                volumeKey: 'clean',
-              ),
-              const SizedBox(height: 7),
-              tankCard(
-                title: KLFText.thirdTank(language),
-                description: KLFText.preDescription(language),
-                keys: const ['pre_h2o2', 'pre_cbba'],
-                volumeKey: 'pre',
-              ),
-              const SizedBox(height: 7),
-              tankCard(
-                title: KLFText.fourthTank(language),
-                description: KLFText.brownDescription(language),
-                keys: const [
-                  'brown_sulfuric',
-                  'brown_h2o2',
-                  'brown_cbba',
-                  'brown_copper',
-                ],
-                volumeKey: 'brown',
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: _saving ? null : saveRecord,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.cloud_upload_outlined),
-                  label: Text(
-                    _saving ? KLFText.saving(language) : KLFText.save(language),
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 7),
-              SizedBox(
-                height: 46,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RecordsPage(userName: widget.userName),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.folder_open),
-                  label: Text(KLFText.records(language)),
-                ),
-              ),
-              const SizedBox(height: 15),
-              Center(
-                child: Text(
-                  '${KLFConfig.appName} ${KLFConfig.version}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 11),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -2296,7 +2566,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
 // ============================================================
 // 化驗存檔
-// Firebase 即時共享
 // ============================================================
 
 class RecordsPage extends StatefulWidget {
@@ -2325,136 +2594,6 @@ class _RecordsPageState extends State<RecordsPage> {
     }
   }
 
-  void _requestAdminDelete(String id) {
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text('管理者驗證'),
-          content: const Text('刪除化驗資料需要管理者權限。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-
-                _showAdminPassword(id);
-              },
-              child: const Text('管理者驗證'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showAdminPassword(String id) {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text('管理者密碼'),
-          content: TextField(
-            controller: controller,
-            obscureText: true,
-            autofocus: true,
-            onSubmitted: (_) {
-              _verifyAdminDelete(controller.text, id);
-            },
-            decoration: const InputDecoration(
-              labelText: '輸入管理者密碼',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                _verifyAdminDelete(controller.text, id);
-              },
-              child: const Text('確認'),
-            ),
-          ],
-        );
-      },
-    ).then((_) {
-      controller.dispose();
-    });
-  }
-
-  void _verifyAdminDelete(String password, String id) {
-    if (password == KLFConfig.adminPassword) {
-      Navigator.pop(context);
-      _deleteRecord(id);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('管理者密碼錯誤，無法刪除'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  Future<void> _deleteRecord(String id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('刪除雲端存檔'),
-        content: const Text(
-          '確定要永久刪除這筆化驗資料嗎？\n\n'
-          '刪除後所有手機都會同步消失。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('刪除'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    try {
-      await FirebaseAnalysisManager.deleteRecord(id);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已從雲端刪除，所有手機同步更新'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('刪除失敗，請確認 Firebase 權限'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
   void _openRecord(Map<String, dynamic> record) {
     Navigator.push(
       context,
@@ -2465,156 +2604,288 @@ class _RecordsPageState extends State<RecordsPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('化驗存檔'),
+  void _requestAdminDelete(String id) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(KLFText.adminVerification()),
+        content: Text(KLFText.deleteNeedAdmin()),
         actions: [
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: FirebaseAnalysisManager.recordsStream(),
-            builder: (context, snapshot) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.cloud_done,
-                      size: 18,
-                      color: snapshot.hasError ? Colors.red : Colors.green,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      snapshot.hasError ? '離線' : '雲端同步',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: snapshot.hasError ? Colors.red : Colors.green,
-                      ),
-                    ),
-                  ],
-                ),
-              );
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(KLFText.cancel()),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showAdminPassword(id);
             },
+            child: Text(KLFText.adminLogin()),
           ),
         ],
       ),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: FirebaseAnalysisManager.recordsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    );
+  }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.cloud_off, size: 60, color: Colors.red),
-                    const SizedBox(height: 15),
-                    const Text(
-                      '無法讀取雲端化驗資料',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+  void _showAdminPassword(String id) {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(KLFText.adminPassword()),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          autofocus: true,
+          onSubmitted: (_) {
+            _verifyAdminDelete(controller.text, id);
+          },
+          decoration: InputDecoration(
+            labelText: KLFText.adminPassword(),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(KLFText.cancel()),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _verifyAdminDelete(controller.text, id);
+            },
+            child: Text(KLFText.confirm()),
+          ),
+        ],
+      ),
+    ).then((_) => controller.dispose());
+  }
+
+  void _verifyAdminDelete(String password, String id) {
+    if (password == KLFConfig.adminPassword) {
+      Navigator.pop(context);
+      _deleteRecord(id);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(KLFText.wrongAdminPassword()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteRecord(String id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(KLFText.deleteCloudTitle()),
+        content: Text(KLFText.deleteCloudContent()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(KLFText.cancel()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(KLFText.delete()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await FirebaseAnalysisManager.deleteRecord(id);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(KLFText.userUpdated()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(KLFText.recordDeleteFailed()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<KLFLanguage>(
+      valueListenable: KLFGlobalLanguage.notifier,
+      builder: (_, __, ___) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(KLFText.records()),
+            actions: [
+              StreamBuilder<List<Map<String, dynamic>>>(
+                stream: FirebaseAnalysisManager.recordsStream(),
+                builder: (context, snapshot) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.cloud_done,
+                          size: 18,
+                          color: snapshot.hasError ? Colors.red : Colors.green,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          snapshot.hasError
+                              ? KLFText.offline()
+                              : KLFText.cloudSync(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: snapshot.hasError
+                                ? Colors.red
+                                : Colors.green,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '請確認網路與 Firebase Firestore 權限設定。',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 15),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() {});
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('重新連線'),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
-            );
-          }
+              const LanguageButton(),
+            ],
+          ),
+          body: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: FirebaseAnalysisManager.recordsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final records = snapshot.data ?? [];
-
-          if (records.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.folder_open, size: 60, color: Colors.grey),
-                  SizedBox(height: 12),
-                  Text('目前沒有化驗存檔', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: records.length,
-            itemBuilder: (context, index) {
-              final record = records[index];
-
-              final line = record['line'] ?? '';
-
-              final time = record['time'] ?? '';
-
-              final user = record['user'] ?? '';
-
-              final id = record['id']?.toString() ?? '';
-
-              return Card(
-                child: ExpansionTile(
-                  leading: CircleAvatar(
-                    child: Text(line.toString().replaceAll('線', '')),
-                  ),
-                  title: Text(
-                    '$line｜${formatDate(time.toString())}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text('化驗人員：$user'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: '查看／修改',
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: () {
-                          _openRecord(record);
-                        },
-                      ),
-                      IconButton(
-                        tooltip: '管理者刪除',
-                        icon: const Icon(
-                          Icons.delete_outline,
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.cloud_off,
+                          size: 60,
                           color: Colors.red,
                         ),
-                        onPressed: id.isEmpty
-                            ? null
-                            : () {
-                                _requestAdminDelete(id);
-                              },
+                        const SizedBox(height: 15),
+                        Text(
+                          KLFText.cloudReadFailed(),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          KLFText.cloudReadHint(),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 15),
+                        ElevatedButton.icon(
+                          onPressed: () => setState(() {}),
+                          icon: const Icon(Icons.refresh),
+                          label: Text(KLFText.reconnect()),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              final records = snapshot.data ?? [];
+
+              if (records.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.folder_open,
+                        size: 60,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        KLFText.noAnalysisRecords(),
+                        style: const TextStyle(color: Colors.grey),
                       ),
                     ],
                   ),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                      child: _recordSummary(record),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: records.length,
+                itemBuilder: (context, index) {
+                  final record = records[index];
+
+                  final line = record['line'] ?? '';
+
+                  final time = record['time'] ?? '';
+
+                  final user = record['user'] ?? '';
+
+                  final id = record['id']?.toString() ?? '';
+
+                  return Card(
+                    child: ExpansionTile(
+                      leading: CircleAvatar(
+                        child: Text(line.toString().replaceAll('線', '')),
+                      ),
+                      title: Text(
+                        '$line｜'
+                        '${formatDate(time.toString())}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(KLFText.analyst(user.toString())),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: KLFText.viewEdit(),
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => _openRecord(record),
+                          ),
+                          IconButton(
+                            tooltip: KLFText.adminDelete(),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                            ),
+                            onPressed: id.isEmpty
+                                ? null
+                                : () => _requestAdminDelete(id),
+                          ),
+                        ],
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                          child: _recordSummary(record),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -2623,7 +2894,7 @@ class _RecordsPageState extends State<RecordsPage> {
 
     final line = record['line']?.toString() ?? '';
 
-    final biteValue =
+    final bite =
         record['biteAmount'] == null || record['biteAmount'].toString().isEmpty
         ? '-'
         : record['biteAmount'].toString();
@@ -2642,14 +2913,17 @@ class _RecordsPageState extends State<RecordsPage> {
           ),
           child: Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  '咬食量',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  KLFText.bite(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               Text(
-                biteValue,
+                bite,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
@@ -2659,31 +2933,25 @@ class _RecordsPageState extends State<RecordsPage> {
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          '化驗結果',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        Text(
+          KLFText.result(),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 5),
-        ...tankOrder.map((tank) {
-          final title = tank['title'].toString();
-
-          final description = tank['description'].toString();
-
-          final keys = List<String>.from(tank['keys']);
-
-          return _resultTank(
+        ...tankOrder.map(
+          (tank) => resultTank(
             line: line,
-            title: title,
-            description: description,
-            keys: keys,
+            title: tank['title'].toString(),
+            description: tank['description'].toString(),
+            keys: List<String>.from(tank['keys']),
             chemicals: chemicals,
-          );
-        }),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _resultTank({
+  Widget resultTank({
     required String line,
     required String title,
     required String description,
@@ -2706,7 +2974,7 @@ class _RecordsPageState extends State<RecordsPage> {
               children: [
                 Expanded(
                   child: Text(
-                    title,
+                    tankTitle(title),
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -2714,7 +2982,7 @@ class _RecordsPageState extends State<RecordsPage> {
                   ),
                 ),
                 Text(
-                  description,
+                  tankDescription(description),
                   style: const TextStyle(fontSize: 10, color: Colors.grey),
                 ),
               ],
@@ -2727,7 +2995,7 @@ class _RecordsPageState extends State<RecordsPage> {
                   ? Map<String, dynamic>.from(raw)
                   : <String, dynamic>{};
 
-              return _compactResultRow(line: line, key: key, data: data);
+              return compactResultRow(line: line, key: key, data: data);
             }),
           ],
         ),
@@ -2735,7 +3003,7 @@ class _RecordsPageState extends State<RecordsPage> {
     );
   }
 
-  Widget _compactResultRow({
+  Widget compactResultRow({
     required String line,
     required String key,
     required Map<String, dynamic> data,
@@ -2750,21 +3018,21 @@ class _RecordsPageState extends State<RecordsPage> {
 
     String concentration = data['concentration']?.toString() ?? '';
 
-    final addAmount = data['addAmount']?.toString() ?? '';
+    final add = data['addAmount']?.toString() ?? '';
 
     if (key == 'brown_copper') {
-      final inputNumber = double.tryParse(input.trim());
+      final n = double.tryParse(input.trim());
 
-      if (inputNumber != null) {
-        concentration = formatNumber(inputNumber * setting.factor);
+      if (n != null) {
+        concentration = formatNumber(n * setting.factor);
       }
     }
 
     Color? addColor;
 
-    if (addAmount == '不用添加') {
+    if (add == '不用添加') {
       addColor = Colors.green;
-    } else if (addAmount.isNotEmpty && addAmount != '-') {
+    } else if (add.isNotEmpty && add != '-') {
       addColor = Colors.red;
     }
 
@@ -2780,33 +3048,35 @@ class _RecordsPageState extends State<RecordsPage> {
           Expanded(
             flex: 2,
             child: Text(
-              setting.name,
+              chemicalName(setting.name),
               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
             ),
           ),
           Expanded(
             flex: 2,
-            child: _smallResult('輸入', input.isEmpty ? '-' : input),
+            child: smallResult(KLFText.input(), input.isEmpty ? '-' : input),
           ),
           Expanded(
             flex: 2,
-            child: _smallResult(
-              '中值',
-              setting.middle == null ? '無中值' : formatNumber(setting.middle!),
+            child: smallResult(
+              KLFText.middle(),
+              setting.middle == null
+                  ? KLFGlobalLanguage.t('無中值', 'ไม่มีค่ากลาง')
+                  : formatNumber(setting.middle!),
             ),
           ),
           Expanded(
             flex: 2,
-            child: _smallResult(
-              '濃度',
+            child: smallResult(
+              KLFText.concentration(),
               concentration.isEmpty ? '-' : concentration,
             ),
           ),
           Expanded(
             flex: 3,
-            child: _smallResult(
-              '需添加量',
-              addAmount.isEmpty ? '-' : addAmount,
+            child: smallResult(
+              KLFText.addAmount(),
+              add.isEmpty ? '-' : (add == '不用添加' ? KLFText.noNeedAdd() : add),
               valueColor: addColor,
             ),
           ),
@@ -2815,7 +3085,7 @@ class _RecordsPageState extends State<RecordsPage> {
     );
   }
 
-  Widget _smallResult(String title, String value, {Color? valueColor}) {
+  Widget smallResult(String title, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Column(
@@ -2850,7 +3120,6 @@ class _RecordsPageState extends State<RecordsPage> {
 
 class RecordEditPage extends StatefulWidget {
   final Map<String, dynamic> record;
-
   final String userName;
 
   const RecordEditPage({
@@ -2868,9 +3137,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
   final Map<String, TextEditingController> controllers = {};
 
-  final TextEditingController beforeWeightController = TextEditingController();
+  final beforeWeightController = TextEditingController();
 
-  final TextEditingController afterWeightController = TextEditingController();
+  final afterWeightController = TextEditingController();
 
   bool _saving = false;
 
@@ -2880,13 +3149,11 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
     lineName = widget.record['line'].toString();
 
-    final settings = getSettings(lineName);
-
     final chemicals = Map<String, dynamic>.from(
       widget.record['chemicals'] ?? {},
     );
 
-    for (final key in settings.keys) {
+    for (final key in getSettings(lineName).keys) {
       final input = chemicals[key]?['input']?.toString() ?? '';
 
       controllers[key] = TextEditingController(text: input);
@@ -2905,15 +3172,11 @@ class _RecordEditPageState extends State<RecordEditPage> {
   double? concentration(String key, String value) {
     final setting = getSettings(lineName)[key];
 
-    if (setting == null) {
-      return null;
-    }
+    if (setting == null) return null;
 
     final number = parse(value);
 
-    if (number == null) {
-      return null;
-    }
+    if (number == null) return null;
 
     if (setting.direct) {
       return roundToTenth(number);
@@ -2937,25 +3200,19 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
     final current = concentration(key, value);
 
-    if (current == null) {
-      return null;
-    }
+    if (current == null) return null;
 
     final middle = roundToTenth(setting.middle!);
 
     final actual = roundToTenth(current);
 
-    if (actual >= middle) {
-      return 0;
-    }
+    if (actual >= middle) return 0;
 
     final deficit = roundToTenth(middle - actual);
 
     final steps = (deficit * 10).round();
 
-    if (steps <= 0) {
-      return 0;
-    }
+    if (steps <= 0) return 0;
 
     return roundToTenth(steps * setting.addPerPoint);
   }
@@ -2973,9 +3230,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
   }
 
   Future<void> save() async {
-    if (_saving) {
-      return;
-    }
+    if (_saving) return;
 
     setState(() {
       _saving = true;
@@ -2988,7 +3243,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
       for (final entry in settings.entries) {
         final key = entry.key;
-
         final input = controllers[key]!.text.trim();
 
         final concentrationValue = concentration(key, input);
@@ -3013,13 +3267,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
       final updated = Map<String, dynamic>.from(widget.record);
 
       updated['line'] = lineName;
-
       updated['chemicals'] = chemicals;
-
       updated['beforeWeight'] = beforeWeightController.text.trim();
-
       updated['afterWeight'] = afterWeightController.text.trim();
-
       updated['biteAmount'] = bite == null ? '' : formatNumber(bite);
 
       final id = widget.record['id']?.toString();
@@ -3033,8 +3283,8 @@ class _RecordEditPageState extends State<RecordEditPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('修改已儲存至雲端，所有手機同步更新'),
+        SnackBar(
+          content: Text(KLFText.modifySuccess()),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -3044,8 +3294,8 @@ class _RecordEditPageState extends State<RecordEditPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('修改失敗，請確認 Firebase 連線與權限'),
+        SnackBar(
+          content: Text(KLFText.modifyFailed()),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -3066,9 +3316,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
       child: TextField(
         controller: controllers[key],
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        onChanged: (_) {
-          setState(() {});
-        },
+        onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
@@ -3076,9 +3324,11 @@ class _RecordEditPageState extends State<RecordEditPage> {
             vertical: 10,
           ),
           labelText: setting.direct
-              ? '${setting.name}｜濃度'
-              : '${setting.name}｜滴定值',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
+              ? '${chemicalName(setting.name)}｜'
+                    '${KLFText.directConcentration()}'
+              : '${chemicalName(setting.name)}｜'
+                    '${KLFText.titration()}',
+          border: const OutlineInputBorder(),
         ),
       ),
     );
@@ -3098,14 +3348,14 @@ class _RecordEditPageState extends State<RecordEditPage> {
     if (add == null) {
       addText = '-';
     } else if (add <= 0) {
-      addText = '不用添加';
+      addText = KLFText.noNeedAdd();
     } else {
       addText = '${formatNumber(add)} ${setting.unit}';
     }
 
     Color? addColor;
 
-    if (addText == '不用添加') {
+    if (addText == KLFText.noNeedAdd()) {
       addColor = Colors.green;
     } else if (addText != '-') {
       addColor = Colors.red;
@@ -3117,36 +3367,35 @@ class _RecordEditPageState extends State<RecordEditPage> {
         padding: const EdgeInsets.all(12),
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final middleText = setting.middle == null
+                ? KLFGlobalLanguage.t('無中值', 'ไม่มีค่ากลาง')
+                : formatNumber(setting.middle!);
+
+            final concentrationText = concentrationValue == null
+                ? '-'
+                : formatNumber(concentrationValue);
+
             if (constraints.maxWidth < 600) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    setting.name,
+                    chemicalName(setting.name),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
+                      Expanded(child: editResult(KLFText.middle(), middleText)),
                       Expanded(
-                        child: _editResult(
-                          '中值',
-                          setting.middle == null
-                              ? '無中值'
-                              : formatNumber(setting.middle!),
+                        child: editResult(
+                          KLFText.concentration(),
+                          concentrationText,
                         ),
                       ),
                       Expanded(
-                        child: _editResult(
-                          '濃度',
-                          concentrationValue == null
-                              ? '-'
-                              : formatNumber(concentrationValue),
-                        ),
-                      ),
-                      Expanded(
-                        child: _editResult(
-                          '需添加量',
+                        child: editResult(
+                          KLFText.addAmount(),
                           addText,
                           valueColor: addColor,
                         ),
@@ -3162,29 +3411,21 @@ class _RecordEditPageState extends State<RecordEditPage> {
                 Expanded(
                   flex: 2,
                   child: Text(
-                    setting.name,
+                    chemicalName(setting.name),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
+                Expanded(child: editResult(KLFText.middle(), middleText)),
                 Expanded(
-                  child: _editResult(
-                    '中值',
-                    setting.middle == null
-                        ? '無中值'
-                        : formatNumber(setting.middle!),
-                  ),
-                ),
-                Expanded(
-                  child: _editResult(
-                    '濃度',
-                    concentrationValue == null
-                        ? '-'
-                        : formatNumber(concentrationValue),
-                  ),
+                  child: editResult(KLFText.concentration(), concentrationText),
                 ),
                 Expanded(
                   flex: 2,
-                  child: _editResult('需添加量', addText, valueColor: addColor),
+                  child: editResult(
+                    KLFText.addAmount(),
+                    addText,
+                    valueColor: addColor,
+                  ),
                 ),
               ],
             );
@@ -3194,7 +3435,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
     );
   }
 
-  Widget _editResult(String title, String value, {Color? valueColor}) {
+  Widget editResult(String title, String value, {Color? valueColor}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3212,103 +3453,113 @@ class _RecordEditPageState extends State<RecordEditPage> {
   Widget build(BuildContext context) {
     final settings = getSettings(lineName);
 
-    return Scaffold(
-      appBar: AppBar(title: Text('$lineName｜修改化驗資料')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            color: const Color(0xFFEDE4DE),
-            child: const Padding(
-              padding: EdgeInsets.all(14),
-              child: Text(
-                '修改後會重新計算濃度、需添加量及咬食量，並同步到所有手機。',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
+    return ValueListenableBuilder<KLFLanguage>(
+      valueListenable: KLFGlobalLanguage.notifier,
+      builder: (_, __, ___) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('$lineName｜${KLFText.editRecord()}'),
+            actions: const [LanguageButton()],
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: beforeWeightController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (_) {
-              setState(() {});
-            },
-            decoration: const InputDecoration(
-              isDense: true,
-              labelText: '未棕化重量',
-              suffixText: 'g',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: afterWeightController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (_) {
-              setState(() {});
-            },
-            decoration: const InputDecoration(
-              isDense: true,
-              labelText: '已棕化重量',
-              suffixText: 'g',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 15),
-          Card(
-            color: const Color(0xFFEDE4DE),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      '咬食量',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                color: const Color(0xFFEDE4DE),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Text(
+                    KLFText.modifiedSync(),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  Text(
-                    biteAmount() == null ? '-' : formatNumber(biteAmount()!),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: beforeWeightController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  isDense: true,
+                  labelText: KLFText.unbrownedWeight(),
+                  suffixText: 'g',
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: afterWeightController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  isDense: true,
+                  labelText: KLFText.brownedWeight(),
+                  suffixText: 'g',
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 15),
+              Card(
+                color: const Color(0xFFEDE4DE),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          KLFText.bite(),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        biteAmount() == null
+                            ? '-'
+                            : formatNumber(biteAmount()!),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+              ...analysisOrder.map(
+                (key) => Column(children: [input(key), resultPreview(key)]),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 55,
+                child: ElevatedButton.icon(
+                  onPressed: _saving ? null : save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.cloud_upload_outlined),
+                  label: Text(
+                    _saving ? KLFText.cloudSaving() : KLFText.saveEdit(),
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 17,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 15),
-          ...analysisOrder.map(
-            (key) => Column(children: [input(key), resultPreview(key)]),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 55,
-            child: ElevatedButton.icon(
-              onPressed: _saving ? null : save,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.cloud_upload_outlined),
-              label: Text(
-                _saving ? '雲端儲存中...' : '儲存修改',
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -3319,7 +3570,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     beforeWeightController.dispose();
-
     afterWeightController.dispose();
 
     super.dispose();
@@ -3327,17 +3577,20 @@ class _RecordEditPageState extends State<RecordEditPage> {
 }
 
 // ============================================================
-// v1.2.2 完
+// v1.2.3 完
 //
-// 本版本完成：
-// 1. 化驗結果維持一頁式
-// 2. 化驗結果不顯示 A/B 線選項
-// 3. 保留原有化驗計算公式
-// 4. 登入頁中文／泰文切換
-// 5. 化驗頁中文／泰文切換
-// 6. 登入前不顯示紅色錯誤
-// 7. 輸入錯誤或按登入後才顯示錯誤
-// 8. A 線槽體積：500 / 800 / 700 / 1400 L
-// 9. B 線槽體積：246 / 582 / 440 / 1560 L
+// 本版本重點：
+// 1. 中文／泰文改為全系統語言
+// 2. 語言設定使用瀏覽器 LocalStorage 保存
+// 3. 切換語言後跨頁面維持
+// 4. 登入／管理者／首頁／化驗／存檔／修改頁全部同步
+// 5. 所有主要按鈕與提示同步翻譯
+// 6. 保留原有計算公式
+// 7. 保留 Firebase
+// 8. 保留授權共享
+// 9. 保留 QR Code
+// 10. 保留一頁式化驗結果
+// 11. 保留 A／B 線
+// 12. 保留槽體積
 //
 // ============================================================
