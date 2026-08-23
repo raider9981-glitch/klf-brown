@@ -39,6 +39,11 @@ jobs:
       - name: Build Flutter Web
         run: flutter build web --release --base-href /klf-brown/
 
+      - name: Verify Firebase analysis code
+        run: |
+          grep -q "analysis_records" build/web/main.dart.js
+          echo "Firebase analysis_records found."
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
