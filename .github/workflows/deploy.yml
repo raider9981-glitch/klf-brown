@@ -39,14 +39,6 @@ jobs:
       - name: Build Flutter Web
         run: flutter build web --release --base-href /klf-brown/
 
-      # 防止 GitHub Pages 入口檔長時間使用舊快取
-      - name: Disable stale cache for entry files
-        run: |
-          cat > build/web/_headers <<'EOF'
-          /*
-            Cache-Control: no-cache, no-store, must-revalidate
-          EOF
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
