@@ -27,22 +27,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.1'
-          channel: stable
-
-      - name: Flutter Pub Get
-        run: flutter pub get
-
-      - name: Build Flutter Web
-        run: flutter build web --release --base-href /klf-brown/
+      - name: Prepare GitHub Pages redirect
+        run: |
+          mkdir -p build/web
+          cp web/index.html build/web/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload build/web
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
