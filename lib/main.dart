@@ -97,6 +97,59 @@ class FirebaseUserManager {
   }
 }
 
+class FirebaseAnalysisManager {
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static const String collectionName = 'analysis_records';
+
+  static Future<void> addRecord(Map<String, dynamic> record) async {
+    final data = Map<String, dynamic>.from(record);
+
+    data.remove('id');
+    data.remove('time');
+    data['createdAt'] = FieldValue.serverTimestamp();
+    data['updatedAt'] = FieldValue.serverTimestamp();
+
+    await _firestore.collection(collectionName).add(data);
+  }
+
+  static Future<List<Map<String, dynamic>>> getRecords() async {
+    final snapshot = await _firestore
+        .collection(collectionName)
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = Map<String, dynamic>.from(doc.data());
+      data['id'] = doc.id;
+
+      final createdAt = data['createdAt'];
+      data['time'] = createdAt is Timestamp
+          ? createdAt.toDate().toIso8601String()
+          : '';
+
+      return data;
+    }).toList();
+  }
+
+  static Future<void> updateRecord(
+    String id,
+    Map<String, dynamic> record,
+  ) async {
+    final data = Map<String, dynamic>.from(record);
+
+    data.remove('id');
+    data.remove('time');
+    data['updatedAt'] = FieldValue.serverTimestamp();
+
+    await _firestore.collection(collectionName).doc(id).update(data);
+  }
+
+  static Future<void> deleteRecord(String id) async {
+    await _firestore.collection(collectionName).doc(id).delete();
+  }
+}
+
 class KLFConfig {
   static const String appName = 'KLF-棕化';
   static const String version = 'v1.1.9';
@@ -1346,7 +1399,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return (before - after) / 100 * 21910;
   }
 
-  void saveRecord() {
+  Future<void> saveRecord() async {
     final settings = getSettings(widget.lineName);
 
     final chemicals = <String, dynamic>{};
@@ -1376,28 +1429,35 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final bite = biteAmount();
 
     final record = <String, dynamic>{
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
       'line': widget.lineName,
       'user': widget.userName,
-      'time': DateTime.now().toIso8601String(),
       'beforeWeight': beforeWeightController.text.trim(),
       'afterWeight': afterWeightController.text.trim(),
       'biteAmount': bite == null ? '' : formatNumber(bite),
       'chemicals': chemicals,
     };
 
-    final records = LocalStorageHelper.getRecords();
+    try {
+      await FirebaseAnalysisManager.addRecord(record);
 
-    records.insert(0, record);
+      if (!mounted) return;
 
-    LocalStorageHelper.saveRecords(records);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('化驗資料已儲存至雲端'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('化驗資料已存檔'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('雲端存檔失敗，請確認網路與 Firebase 權限'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget inputField(String key) {
@@ -1847,6 +1907,8 @@ class RecordsPage extends StatefulWidget {
 
 class _RecordsPageState extends State<RecordsPage> {
   List<Map<String, dynamic>> records = [];
+  bool loading = true;
+  String? loadError;
 
   @override
   void initState() {
@@ -1854,10 +1916,27 @@ class _RecordsPageState extends State<RecordsPage> {
     _load();
   }
 
-  void _load() {
+  Future<void> _load() async {
     setState(() {
-      records = LocalStorageHelper.getRecords();
+      loading = true;
+      loadError = null;
     });
+
+    try {
+      final cloudRecords = await FirebaseAnalysisManager.getRecords();
+
+      if (!mounted) return;
+      setState(() {
+        records = cloudRecords;
+        loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        loadError = '無法讀取雲端化驗資料，請確認網路與 Firebase 權限';
+      });
+    }
   }
 
   String formatDate(String value) {
@@ -1956,34 +2035,36 @@ class _RecordsPageState extends State<RecordsPage> {
     }
   }
 
-  void _deleteRecord(String id) {
-    showDialog(
+  Future<void> _deleteRecord(String id) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) {
-        return AlertDialog(
-          title: const Text('刪除存檔'),
-          content: const Text('確定要永久刪除這筆化驗資料嗎？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                records.removeWhere((record) => record['id'] == id);
-
-                LocalStorageHelper.saveRecords(records);
-
-                Navigator.pop(context);
-
-                _load();
-              },
-              child: const Text('刪除'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => AlertDialog(
+        title: const Text('刪除存檔'),
+        content: const Text('確定要永久刪除這筆化驗資料嗎？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
     );
+
+    if (confirmed != true) return;
+
+    try {
+      await FirebaseAnalysisManager.deleteRecord(id);
+      await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('雲端刪除失敗，請稍後再試')),
+      );
+    }
   }
 
   void _openRecord(Map<String, dynamic> record) {
@@ -1993,16 +2074,23 @@ class _RecordsPageState extends State<RecordsPage> {
         builder: (_) =>
             RecordEditPage(record: record, userName: widget.userName),
       ),
-    ).then((_) {
-      _load();
-    });
+    ).then((_) => _load());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('化驗存檔')),
-      body: records.isEmpty
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : loadError != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(loadError!, textAlign: TextAlign.center),
+              ),
+            )
+          : records.isEmpty
           ? const Center(
               child: Text('目前沒有化驗存檔', style: TextStyle(color: Colors.grey)),
             )
@@ -2318,7 +2406,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
     return (before - after) / 100 * 21910;
   }
 
-  void save() {
+  Future<void> save() async {
     final settings = getSettings(lineName);
 
     final chemicals = <String, dynamic>{};
@@ -2363,25 +2451,30 @@ class _RecordEditPageState extends State<RecordEditPage> {
 
     updated['biteAmount'] = bite == null ? '' : formatNumber(bite);
 
-    updated['editedTime'] = DateTime.now().toIso8601String();
+    final id = widget.record['id']?.toString();
 
-    final records = LocalStorageHelper.getRecords();
-
-    final index = records.indexWhere(
-      (record) => record['id'] == widget.record['id'],
-    );
-
-    if (index >= 0) {
-      records[index] = updated;
+    if (id == null || id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('找不到雲端存檔識別碼')),
+      );
+      return;
     }
 
-    LocalStorageHelper.saveRecords(records);
+    try {
+      await FirebaseAnalysisManager.updateRecord(id, updated);
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('修改已儲存')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('修改已儲存至雲端')));
 
-    Navigator.pop(context);
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('雲端修改失敗，請稍後再試')),
+      );
+    }
   }
 
   Widget input(String key) {
