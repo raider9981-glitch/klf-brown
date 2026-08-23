@@ -1,6 +1,6 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.2.3
+// 版本：v1.2.4
 //
 // 本次版本修改內容：
 // 1. A線／B線加入各槽槽體積
@@ -21,6 +21,10 @@
 // 16. 強化主畫面 Web App 自動更新機制由 web/index.html 處理
 // 17. 化驗存檔單筆資料改為獨立完整化驗結果頁
 // 18. 獨立結果頁沿用化驗頁版型並填滿手機畫面
+// 19. 主畫面手機版生產線卡片改為緊湊排版，減少上下空白
+// 20. 主畫面化驗週期區塊改為緊湊排版，減少高度
+// 21. 化驗存檔單筆結果頁縮小生產線、操作員、時間等資訊區塊
+// 22. 化驗結果頁改為更緊湊的一頁式排列，保留所有化驗資料與功能
 //
 // ============================================================
 
@@ -161,7 +165,7 @@ class FirebaseAnalysisManager {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.2.3';
+  static const String version = 'v1.2.4';
 
   static const String adminPassword = '0';
 
@@ -1006,119 +1010,145 @@ class HomePage extends StatelessWidget {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1000),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ListView(
-              children: [
-                const Text(
-                  '棕化水平生產線',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '請選擇需要進行藥水分析的生產線',
-                  style: TextStyle(color: Colors.grey, fontSize: 16),
-                ),
-                const SizedBox(height: 30),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final lines = [
-                      ('A線', '棕化水平生產線 A', true),
-                      ('B線', '棕化水平生產線 B', true),
-                      ('C線', '待開發', false),
-                      ('D線', '待開發', false),
-                      ('E線', '待開發', false),
-                    ];
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < 650;
 
-                    if (constraints.maxWidth < 650) {
-                      return Column(
-                        children: [
-                          for (int i = 0; i < lines.length; i++) ...[
-                            _buildLineCard(
-                              context,
-                              lines[i].$1,
-                              lines[i].$2,
-                              enabled: lines[i].$3,
-                            ),
-                            if (i < lines.length - 1)
-                              const SizedBox(height: 12),
-                          ],
-                        ],
-                      );
-                    }
+              return Padding(
+                padding: EdgeInsets.all(isMobile ? 10 : 24),
+                child: ListView(
+                  children: [
+                    const Text(
+                      '棕化水平生產線',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '請選擇需要進行藥水分析的生產線',
+                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                    const SizedBox(height: 30),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final lines = [
+                          ('A線', '棕化水平生產線 A', true),
+                          ('B線', '棕化水平生產線 B', true),
+                          ('C線', '待開發', false),
+                          ('D線', '待開發', false),
+                          ('E線', '待開發', false),
+                        ];
 
-                    return Wrap(
-                      spacing: 20,
-                      runSpacing: 20,
-                      children: [
-                        for (final line in lines)
-                          SizedBox(
-                            width: (constraints.maxWidth - 40) / 3,
-                            child: _buildLineCard(
-                              context,
-                              line.$1,
-                              line.$2,
-                              enabled: line.$3,
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.folder_open,
-                      color: Color(0xFF6B3F22),
-                    ),
-                    title: const Text(
-                      '化驗存檔',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: const Text('查看、修改歷史化驗資料'),
-                    trailing: const Icon(Icons.arrow_forward),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RecordsPage(userName: userName),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time, color: Color(0xFF6B3F22)),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        if (constraints.maxWidth < 650) {
+                          return Column(
                             children: [
-                              Text(
-                                '化驗週期',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              SizedBox(height: 4),
-                              Text('每 4 小時進行一次藥水分析'),
+                              for (int i = 0; i < lines.length; i++) ...[
+                                _buildLineCard(
+                                  context,
+                                  lines[i].$1,
+                                  lines[i].$2,
+                                  enabled: lines[i].$3,
+                                ),
+                                if (i < lines.length - 1)
+                                  const SizedBox(height: 12),
+                              ],
                             ],
-                          ),
-                        ),
-                        Text(
-                          KLFConfig.version,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
+                          );
+                        }
+
+                        return Wrap(
+                          spacing: 20,
+                          runSpacing: 20,
+                          children: [
+                            for (final line in lines)
+                              SizedBox(
+                                width: (constraints.maxWidth - 40) / 3,
+                                child: _buildLineCard(
+                                  context,
+                                  line.$1,
+                                  line.$2,
+                                  enabled: line.$3,
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     ),
-                  ),
+                    const SizedBox(height: 20),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.folder_open,
+                          color: Color(0xFF6B3F22),
+                        ),
+                        title: const Text(
+                          '化驗存檔',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: const Text('查看、修改歷史化驗資料'),
+                        trailing: const Icon(Icons.arrow_forward),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RecordsPage(userName: userName),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(
+                          constraints.maxWidth < 650 ? 10 : 20,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.access_time,
+                              color: Color(0xFF6B3F22),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '化驗週期',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: constraints.maxWidth < 650
+                                          ? 14
+                                          : 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '每 4 小時進行一次藥水分析',
+                                    style: TextStyle(
+                                      fontSize: constraints.maxWidth < 650
+                                          ? 12
+                                          : 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              KLFConfig.version,
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -1149,7 +1179,9 @@ class HomePage extends StatelessWidget {
               }
             : null,
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(
+            MediaQuery.of(context).size.width < 650 ? 12 : 20,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1157,19 +1189,21 @@ class HomePage extends StatelessWidget {
                 isAvailable
                     ? Icons.water_drop_outlined
                     : Icons.construction_outlined,
-                size: 44,
+                size: MediaQuery.of(context).size.width < 650 ? 32 : 44,
                 color: isAvailable ? const Color(0xFF6B3F22) : Colors.grey,
               ),
-              const SizedBox(height: 12),
+              SizedBox(
+                height: MediaQuery.of(context).size.width < 650 ? 5 : 12,
+              ),
               Text(
                 lineName,
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: MediaQuery.of(context).size.width < 650 ? 20 : 24,
                   fontWeight: FontWeight.bold,
                   color: isAvailable ? null : Colors.grey,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 3),
               Text(
                 subtitle,
                 style: TextStyle(
@@ -1177,7 +1211,9 @@ class HomePage extends StatelessWidget {
                   fontWeight: isAvailable ? FontWeight.normal : FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(
+                height: MediaQuery.of(context).size.width < 650 ? 7 : 16,
+              ),
               Row(
                 children: [
                   Text(
@@ -2454,14 +2490,17 @@ class RecordViewPage extends StatelessWidget {
               child: SizedBox(
                 width: contentWidth,
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                  padding: const EdgeInsets.fromLTRB(6, 6, 6, 12),
                   children: [
                     Card(
                       child: Padding(
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
                         child: Wrap(
-                          spacing: 20,
-                          runSpacing: 8,
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
                             _infoItem('生產線', line),
                             _infoItem('操作員', user),
@@ -2481,18 +2520,18 @@ class RecordViewPage extends StatelessWidget {
                       }
 
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.only(bottom: 5),
                         child: Card(
                           child: Padding(
-                            padding: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(5),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 9,
+                                    horizontal: 8,
+                                    vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFEDE4DE),
@@ -2504,7 +2543,7 @@ class RecordViewPage extends StatelessWidget {
                                         child: Text(
                                           tank.name,
                                           style: const TextStyle(
-                                            fontSize: 17,
+                                            fontSize: 14,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -2518,7 +2557,7 @@ class RecordViewPage extends StatelessWidget {
                                     ],
                                   ),
                                 ),
-                                const SizedBox(height: 7),
+                                const SizedBox(height: 3),
 
                                 ...keys.map((key) {
                                   final setting = getSettings(line)[key]!;
@@ -2543,10 +2582,10 @@ class RecordViewPage extends StatelessWidget {
                                   }
 
                                   return Container(
-                                    margin: const EdgeInsets.only(bottom: 5),
+                                    margin: const EdgeInsets.only(bottom: 2),
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 7,
-                                      vertical: 7,
+                                      horizontal: 4,
+                                      vertical: 3,
                                     ),
                                     decoration: BoxDecoration(
                                       border: Border.all(color: Colors.black12),
@@ -2560,7 +2599,7 @@ class RecordViewPage extends StatelessWidget {
                                             setting.name,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
-                                              fontSize: 14,
+                                              fontSize: 12,
                                             ),
                                           ),
                                         ),
@@ -2607,26 +2646,14 @@ class RecordViewPage extends StatelessWidget {
 
                     const SizedBox(height: 6),
 
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.info_outline,
-                              color: Color(0xFF6B3F22),
-                            ),
-                            const SizedBox(width: 10),
-                            const Expanded(child: Text('此頁為單筆化驗存檔的完整結果。')),
-                            IconButton(
-                              tooltip: '刪除',
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: () async {
-                                await _deleteWithAdmin(context);
-                              },
-                            ),
-                          ],
-                        ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        tooltip: '刪除',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () async {
+                          await _deleteWithAdmin(context);
+                        },
                       ),
                     ),
                   ],
@@ -2641,15 +2668,15 @@ class RecordViewPage extends StatelessWidget {
 
   Widget _infoItem(String title, String value) {
     return SizedBox(
-      width: 190,
+      width: 145,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 10)),
           const SizedBox(height: 2),
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           ),
         ],
       ),
@@ -2662,13 +2689,13 @@ class RecordViewPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 9)),
           const SizedBox(height: 2),
           Text(
             value,
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontSize: 11,
               color: valueColor,
             ),
           ),
