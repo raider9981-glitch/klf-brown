@@ -25,25 +25,68 @@
 
 <body>
   <script>
-    // 主畫面 PWA 每次開啟時主動檢查新版；偵測到新版服務工作者後自動重載。
-    // 網址維持不變，使用者不必重新建立主畫面捷徑。
+    // ============================================================
+    // KLF-棕化 Web App 自動更新
+    //
+    // 每次開啟主畫面 App：
+    // 1. 主動檢查 Service Worker 新版本
+    // 2. 發現新版時要求新版立即接管
+    // 3. 新版接管後自動重新載入
+    //
+    // 使用者不需要重新建立主畫面捷徑。
+    // ============================================================
+
     if ('serviceWorker' in navigator) {
       let reloadingForUpdate = false;
 
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!reloadingForUpdate) {
-          reloadingForUpdate = true;
-          window.location.reload();
+        if (reloadingForUpdate) {
+          return;
         }
+
+        reloadingForUpdate = true;
+        window.location.reload();
       });
 
+      async function checkForAppUpdate() {
+        try {
+          const registrations =
+              await navigator.serviceWorker.getRegistrations();
+
+          for (const registration of registrations) {
+            try {
+              await registration.update();
+
+              // 如果新版 Service Worker 已經等待接管，
+              // 要求它立即啟用。
+              if (registration.waiting) {
+                registration.waiting.postMessage({
+                  type: 'SKIP_WAITING'
+                });
+              }
+            } catch (_) {
+              // 更新檢查失敗時不影響正常開啟 App。
+            }
+          }
+        } catch (_) {
+          // 沒有 Service Worker 或檢查失敗時照常啟動。
+        }
+      }
+
+      // App 第一次開啟
       window.addEventListener('load', () => {
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          registrations.forEach((registration) => registration.update());
-        });
+        checkForAppUpdate();
+      });
+
+      // 從背景回到前景時再次檢查
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          checkForAppUpdate();
+        }
       });
     }
   </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

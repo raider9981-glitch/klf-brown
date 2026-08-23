@@ -1,6 +1,6 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.2.0
+// 版本：v1.2.3
 //
 // 本次版本修改內容：
 // 1. A線／B線加入各槽槽體積
@@ -14,6 +14,13 @@
 // 9. 保留原本化驗修改功能
 // 10. 保留登入、Firebase、管理者、QR Code 功能
 // 11. 桌面版功能與其他計算邏輯不變
+// 12. 主畫面新增 C線、D線、E線，顯示「待開發」且不可進入化驗
+// 13. 化驗畫面手機版改為緊湊表格式，減少垂直高度
+// 14. 保留原本計算公式、槽體積、Firebase 與存檔功能
+// 15. 化驗頁上方新增管理者按鈕
+// 16. 強化主畫面 Web App 自動更新機制由 web/index.html 處理
+// 17. 化驗存檔單筆資料改為獨立完整化驗結果頁
+// 18. 獨立結果頁沿用化驗頁版型並填滿手機畫面
 //
 // ============================================================
 
@@ -154,7 +161,7 @@ class FirebaseAnalysisManager {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.2.0';
+  static const String version = 'v1.2.3';
 
   static const String adminPassword = '0';
 
@@ -1015,25 +1022,45 @@ class HomePage extends StatelessWidget {
                 const SizedBox(height: 30),
                 LayoutBuilder(
                   builder: (context, constraints) {
+                    final lines = [
+                      ('A線', '棕化水平生產線 A', true),
+                      ('B線', '棕化水平生產線 B', true),
+                      ('C線', '待開發', false),
+                      ('D線', '待開發', false),
+                      ('E線', '待開發', false),
+                    ];
+
                     if (constraints.maxWidth < 650) {
                       return Column(
                         children: [
-                          _buildLineCard(context, 'A線', '棕化水平生產線 A'),
-                          const SizedBox(height: 18),
-                          _buildLineCard(context, 'B線', '棕化水平生產線 B'),
+                          for (int i = 0; i < lines.length; i++) ...[
+                            _buildLineCard(
+                              context,
+                              lines[i].$1,
+                              lines[i].$2,
+                              enabled: lines[i].$3,
+                            ),
+                            if (i < lines.length - 1)
+                              const SizedBox(height: 12),
+                          ],
                         ],
                       );
                     }
 
-                    return Row(
+                    return Wrap(
+                      spacing: 20,
+                      runSpacing: 20,
                       children: [
-                        Expanded(
-                          child: _buildLineCard(context, 'A線', '棕化水平生產線 A'),
-                        ),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          child: _buildLineCard(context, 'B線', '棕化水平生產線 B'),
-                        ),
+                        for (final line in lines)
+                          SizedBox(
+                            width: (constraints.maxWidth - 40) / 3,
+                            child: _buildLineCard(
+                              context,
+                              line.$1,
+                              line.$2,
+                              enabled: line.$3,
+                            ),
+                          ),
                       ],
                     );
                   },
@@ -1101,47 +1128,70 @@ class HomePage extends StatelessWidget {
   Widget _buildLineCard(
     BuildContext context,
     String lineName,
-    String subtitle,
-  ) {
+    String subtitle, {
+    bool enabled = true,
+  }) {
+    final isAvailable = enabled;
+
     return Card(
       elevation: 3,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  AnalysisPage(lineName: lineName, userName: userName),
-            ),
-          );
-        },
+        onTap: isAvailable
+            ? () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        AnalysisPage(lineName: lineName, userName: userName),
+                  ),
+                );
+              }
+            : null,
         child: Padding(
-          padding: const EdgeInsets.all(25),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.water_drop_outlined,
-                size: 48,
-                color: Color(0xFF6B3F22),
+              Icon(
+                isAvailable
+                    ? Icons.water_drop_outlined
+                    : Icons.construction_outlined,
+                size: 44,
+                color: isAvailable ? const Color(0xFF6B3F22) : Colors.grey,
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: 12),
               Text(
                 lineName,
-                style: const TextStyle(
-                  fontSize: 26,
+                style: TextStyle(
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
+                  color: isAvailable ? null : Colors.grey,
                 ),
               ),
               const SizedBox(height: 5),
-              Text(subtitle, style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 20),
-              const Row(
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: isAvailable ? Colors.grey : Colors.orange,
+                  fontWeight: isAvailable ? FontWeight.normal : FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
                 children: [
-                  Text('進入化驗', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Spacer(),
-                  Icon(Icons.arrow_forward),
+                  Text(
+                    isAvailable ? '進入化驗' : '待開發',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isAvailable ? null : Colors.grey,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    isAvailable ? Icons.arrow_forward : Icons.lock_outline,
+                    color: isAvailable ? null : Colors.grey,
+                  ),
                 ],
               ),
             ],
@@ -1636,67 +1686,79 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
-
     final controller = controllers[key]!;
-
     final value = controller.text;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(9),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth < 700) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    setting.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  inputField(key),
-                  const SizedBox(height: 5),
-                  _resultBox('中值', displayMiddle(key)),
-                  const SizedBox(height: 4),
-                  _resultBox('濃度', displayConcentration(key, value)),
-                  const SizedBox(height: 4),
-                  _resultBox('需添加量', displayAddAmount(key, value)),
-                ],
-              );
-            }
-
-            return Row(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 500) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    setting.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        setting.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
-                  ),
+                    SizedBox(width: 145, child: inputField(key)),
+                  ],
                 ),
-                Expanded(flex: 3, child: inputField(key)),
-                const SizedBox(width: 5),
-                Expanded(child: _resultBox('中值', displayMiddle(key))),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: _resultBox('濃度', displayConcentration(key, value)),
-                ),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: _resultBox('需添加量', displayAddAmount(key, value)),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(child: _resultBox('中值', displayMiddle(key))),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: _resultBox('濃度', displayConcentration(key, value)),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      flex: 2,
+                      child: _resultBox('需添加量', displayAddAmount(key, value)),
+                    ),
+                  ],
                 ),
               ],
             );
-          },
-        ),
+          }
+
+          return Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: Text(
+                  setting.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              Expanded(flex: 3, child: inputField(key)),
+              const SizedBox(width: 5),
+              Expanded(child: _resultBox('中值', displayMiddle(key))),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _resultBox('濃度', displayConcentration(key, value)),
+              ),
+              const SizedBox(width: 5),
+              Expanded(child: _resultBox('需添加量', displayAddAmount(key, value))),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1710,7 +1772,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(11),
+        padding: const EdgeInsets.all(8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1747,7 +1809,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             ),
             const SizedBox(height: 1),
             Text(description, style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 7),
+            const SizedBox(height: 4),
             ...keys.map((key) => chemicalRow(key)),
           ],
         ),
@@ -1873,7 +1935,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final tanks = getTankInfo(widget.lineName);
 
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.lineName}｜藥水化驗'), actions: const []),
+      appBar: AppBar(
+        title: Text('${widget.lineName}｜藥水化驗'),
+        actions: [
+          IconButton(
+            tooltip: '管理者',
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminLoginPage()),
+              );
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
@@ -2048,9 +2124,7 @@ class _RecordsPageState extends State<RecordsPage> {
           content: const Text('刪除化驗資料需要管理者權限。'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text('取消'),
             ),
             ElevatedButton(
@@ -2078,9 +2152,7 @@ class _RecordsPageState extends State<RecordsPage> {
             controller: controller,
             obscureText: true,
             autofocus: true,
-            onSubmitted: (_) {
-              _verifyAdminDelete(controller.text, id);
-            },
+            onSubmitted: (_) => _verifyAdminDelete(controller.text, id),
             decoration: const InputDecoration(
               labelText: '輸入管理者密碼',
               border: OutlineInputBorder(),
@@ -2088,15 +2160,11 @@ class _RecordsPageState extends State<RecordsPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text('取消'),
             ),
             ElevatedButton(
-              onPressed: () {
-                _verifyAdminDelete(controller.text, id);
-              },
+              onPressed: () => _verifyAdminDelete(controller.text, id),
               child: const Text('確認'),
             ),
           ],
@@ -2142,13 +2210,28 @@ class _RecordsPageState extends State<RecordsPage> {
 
     try {
       await FirebaseAnalysisManager.deleteRecord(id);
-      await _load();
+
+      if (!mounted) return;
+
+      setState(() {
+        records.removeWhere((record) => record['id']?.toString() == id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('化驗資料已刪除'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('雲端刪除失敗，請稍後再試')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('刪除失敗，請確認網路連線'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -2156,256 +2239,431 @@ class _RecordsPageState extends State<RecordsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            RecordEditPage(record: record, userName: widget.userName),
+        builder: (_) => RecordViewPage(
+          record: record,
+          userName: widget.userName,
+          onDeleted: _load,
+        ),
       ),
-    ).then((_) => _load());
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('化驗存檔')),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : loadError != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(loadError!, textAlign: TextAlign.center),
-              ),
-            )
-          : records.isEmpty
-          ? const Center(
-              child: Text('目前沒有化驗存檔', style: TextStyle(color: Colors.grey)),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: records.length,
-              itemBuilder: (context, index) {
-                final record = records[index];
-
-                final line = record['line'] ?? '';
-                final time = record['time'] ?? '';
-                final user = record['user'] ?? '';
-
-                return Card(
-                  child: ExpansionTile(
-                    leading: CircleAvatar(
-                      child: Text(line.toString().replaceAll('線', '')),
-                    ),
-                    title: Text(
-                      '$line｜${formatDate(time.toString())}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text('化驗人員：$user'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: '查看／修改',
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () {
-                            _openRecord(record);
-                          },
-                        ),
-                        IconButton(
-                          tooltip: '管理者刪除',
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                          ),
-                          onPressed: () {
-                            _requestAdminDelete(record['id']);
-                          },
-                        ),
-                      ],
-                    ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-                        child: _recordSummary(record),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+      appBar: AppBar(
+        title: const Text('化驗存檔'),
+        actions: [
+          IconButton(
+            tooltip: '重新整理',
+            icon: const Icon(Icons.refresh),
+            onPressed: _load,
+          ),
+          IconButton(
+            tooltip: '管理者',
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminLoginPage()),
+              );
+            },
+          ),
+        ],
+      ),
+      body: _buildBody(),
     );
   }
 
-  Widget _recordSummary(Map<String, dynamic> record) {
-    final chemicals = Map<String, dynamic>.from(record['chemicals'] ?? {});
+  Widget _buildBody() {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    final line = record['line'].toString();
+    if (loadError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(loadError!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              ElevatedButton(onPressed: _load, child: const Text('重新讀取')),
+            ],
+          ),
+        ),
+      );
+    }
 
-    final biteValue =
+    if (records.isEmpty) {
+      return const Center(
+        child: Text('目前沒有化驗存檔', style: TextStyle(fontSize: 18)),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(12),
+        itemCount: records.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final record = records[index];
+
+          final line = record['line']?.toString() ?? '-';
+          final user = record['user']?.toString() ?? '-';
+          final time = formatDate(record['time']?.toString() ?? '');
+
+          final bite =
+              record['biteAmount'] == null ||
+                  record['biteAmount'].toString().isEmpty
+              ? '-'
+              : record['biteAmount'].toString();
+
+          return Card(
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              leading: const CircleAvatar(child: Icon(Icons.science_outlined)),
+              title: Text(
+                '$line｜$time',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text('操作員：$user　咬食量：$bite'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openRecord(record),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class RecordViewPage extends StatelessWidget {
+  final Map<String, dynamic> record;
+  final String userName;
+  final Future<void> Function()? onDeleted;
+
+  const RecordViewPage({
+    super.key,
+    required this.record,
+    required this.userName,
+    this.onDeleted,
+  });
+
+  String _formatDate(String value) {
+    try {
+      final date = DateTime.parse(value);
+
+      String two(int n) => n.toString().padLeft(2, '0');
+
+      return '${date.year}-'
+          '${two(date.month)}-'
+          '${two(date.day)} '
+          '${two(date.hour)}:'
+          '${two(date.minute)}';
+    } catch (_) {
+      return value;
+    }
+  }
+
+  List<String> _keysForTank(String line, String tankName) {
+    final settings = getSettings(line);
+
+    final keys = settings.keys.where((key) {
+      final stored = (record['chemicals']?[key]?['tank'] ?? '').toString();
+
+      if (stored.isNotEmpty) {
+        return stored == tankName;
+      }
+
+      return getTankName(line, key) == tankName;
+    }).toList();
+
+    return keys;
+  }
+
+  String _tankVolume(String line, String tankName) {
+    final tanks = getTankInfo(line);
+
+    for (final tank in tanks) {
+      if (tank.name == tankName) {
+        return '${formatNumber(tank.volume)} L';
+      }
+    }
+
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final line = record['line']?.toString() ?? '';
+    final user = record['user']?.toString() ?? '';
+    final time = _formatDate(record['time']?.toString() ?? '');
+
+    final bite =
         record['biteAmount'] == null || record['biteAmount'].toString().isEmpty
         ? '-'
         : record['biteAmount'].toString();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Divider(),
-        const SizedBox(height: 8),
+    final chemicals = Map<String, dynamic>.from(record['chemicals'] ?? {});
 
-        Card(
-          color: const Color(0xFFEDE4DE),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    '咬食量',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Text(
-                  biteValue,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-              ],
-            ),
+    final tanks = getTankInfo(line);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('$line｜化驗結果'),
+        actions: [
+          IconButton(
+            tooltip: '管理者',
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminLoginPage()),
+              );
+            },
           ),
-        ),
+          IconButton(
+            tooltip: '修改',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      RecordEditPage(record: record, userName: userName),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final contentWidth = constraints.maxWidth > 900
+                ? 900.0
+                : constraints.maxWidth;
 
-        const SizedBox(height: 12),
-
-        const Text(
-          '化驗結果',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-
-        const SizedBox(height: 10),
-
-        ...chemicals.entries.map((entry) {
-          final key = entry.key;
-
-          final data = Map<String, dynamic>.from(entry.value ?? {});
-
-          final setting = getSettings(line)[key];
-
-          if (setting == null) {
-            return const SizedBox();
-          }
-
-          final input = data['input']?.toString() ?? '';
-          final concentration = data['concentration']?.toString() ?? '';
-          final addAmount = data['addAmount']?.toString() ?? '';
-
-          // ====================================================
-          // 顯示槽別
-          //
-          // 新存檔會從 Firebase 讀取 tank。
-          // 舊存檔如果沒有 tank，則由 key 自動判斷。
-          // ====================================================
-
-          final storedTank = data['tank']?.toString() ?? '';
-
-          final tankName = storedTank.isNotEmpty
-              ? storedTank
-              : getTankName(line, key);
-
-          Color? addColor;
-
-          if (addAmount == '不用添加') {
-            addColor = Colors.green;
-          } else if (addAmount.isNotEmpty && addAmount != '-') {
-            addColor = Colors.red;
-          }
-
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ==============================================
-                  // 槽別
-                  // ==============================================
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEDE4DE),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      tankName,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
+            return Center(
+              child: SizedBox(
+                width: contentWidth,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                  children: [
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Wrap(
+                          spacing: 20,
+                          runSpacing: 8,
+                          children: [
+                            _infoItem('生產線', line),
+                            _infoItem('操作員', user),
+                            _infoItem('時間', time),
+                            _infoItem('咬食量', bite),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
 
-                  const SizedBox(height: 9),
+                    ...tanks.map((tank) {
+                      final keys = _keysForTank(line, tank.name);
 
-                  // ==============================================
-                  // 藥品名稱與結果
-                  // ==============================================
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          setting.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                      if (keys.isEmpty) {
+                        return const SizedBox();
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 9,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEDE4DE),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          tank.name,
+                                          style: const TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        '${formatNumber(tank.volume)} L',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 7),
+
+                                ...keys.map((key) {
+                                  final setting = getSettings(line)[key]!;
+
+                                  final data = Map<String, dynamic>.from(
+                                    chemicals[key] ?? {},
+                                  );
+
+                                  final input = data['input']?.toString() ?? '';
+                                  final concentration =
+                                      data['concentration']?.toString() ?? '';
+                                  final addAmount =
+                                      data['addAmount']?.toString() ?? '';
+
+                                  Color? addColor;
+
+                                  if (addAmount == '不用添加') {
+                                    addColor = Colors.green;
+                                  } else if (addAmount.isNotEmpty &&
+                                      addAmount != '-') {
+                                    addColor = Colors.red;
+                                  }
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 5),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 7,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.black12),
+                                      borderRadius: BorderRadius.circular(7),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          flex: 2,
+                                          child: Text(
+                                            setting.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _result(
+                                            '輸入',
+                                            input.isEmpty ? '-' : input,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _result(
+                                            '中值',
+                                            setting.middle == null
+                                                ? '無中值'
+                                                : formatNumber(setting.middle!),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _result(
+                                            '濃度',
+                                            concentration.isEmpty
+                                                ? '-'
+                                                : concentration,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: _result(
+                                            '需添加量',
+                                            addAmount.isEmpty ? '-' : addAmount,
+                                            valueColor: addColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+
+                    const SizedBox(height: 6),
+
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              color: Color(0xFF6B3F22),
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(child: Text('此頁為單筆化驗存檔的完整結果。')),
+                            IconButton(
+                              tooltip: '刪除',
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () async {
+                                await _deleteWithAdmin(context);
+                              },
+                            ),
+                          ],
                         ),
                       ),
-                      Expanded(
-                        child: _smallResult('輸入', input.isEmpty ? '-' : input),
-                      ),
-                      Expanded(
-                        child: _smallResult(
-                          '中值',
-                          setting.middle == null
-                              ? '無中值'
-                              : formatNumber(setting.middle!),
-                        ),
-                      ),
-                      Expanded(
-                        child: _smallResult(
-                          '濃度',
-                          concentration.isEmpty ? '-' : concentration,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: _smallResult(
-                          '需添加量',
-                          addAmount.isEmpty ? '-' : addAmount,
-                          valueColor: addColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        }),
-      ],
+            );
+          },
+        ),
+      ),
     );
   }
 
-  Widget _smallResult(String title, String value, {Color? valueColor}) {
+  Widget _infoItem(String title, String value) {
+    return SizedBox(
+      width: 190,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _result(String title, String value, {Color? valueColor}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-          const SizedBox(height: 3),
+          const SizedBox(height: 2),
           Text(
             value,
             style: TextStyle(
@@ -2417,6 +2675,106 @@ class _RecordsPageState extends State<RecordsPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _deleteWithAdmin(BuildContext context) async {
+    final id = record['id']?.toString();
+
+    if (id == null || id.isEmpty) {
+      return;
+    }
+
+    final verified = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        final controller = TextEditingController();
+
+        return AlertDialog(
+          title: const Text('管理者驗證'),
+          content: TextField(
+            controller: controller,
+            obscureText: true,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: '輸入管理者密碼',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  context,
+                  controller.text == KLFConfig.adminPassword,
+                );
+              },
+              child: const Text('確認'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (verified != true) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('管理者密碼錯誤，無法刪除'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('刪除存檔'),
+        content: const Text('確定要永久刪除這筆化驗資料嗎？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await FirebaseAnalysisManager.deleteRecord(id);
+
+      await onDeleted?.call();
+
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('化驗資料已刪除'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('刪除失敗，請確認網路連線'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }
 
