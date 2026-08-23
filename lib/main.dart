@@ -1209,7 +1209,7 @@ Map<String, ChemicalSetting> getSettings(String line) {
       middle: isA ? 1.5 : 2.5,
       factor: 1.0,
       direct: true,
-      addPerPoint: isA ? 1.5 : 0.5,
+      addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
     'brown_sulfuric': ChemicalSetting(
