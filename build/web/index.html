@@ -24,6 +24,26 @@
 </head>
 
 <body>
+  <script>
+    // 主畫面 PWA 每次開啟時主動檢查新版；偵測到新版服務工作者後自動重載。
+    // 網址維持不變，使用者不必重新建立主畫面捷徑。
+    if ('serviceWorker' in navigator) {
+      let reloadingForUpdate = false;
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!reloadingForUpdate) {
+          reloadingForUpdate = true;
+          window.location.reload();
+        }
+      });
+
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => registration.update());
+        });
+      });
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -1,17 +1,19 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.1.9
+// 版本：v1.2.0
 //
 // 本次版本修改內容：
-// 1. 化驗頁手機版改為「一排一個化驗項目」
-// 2. 每個化驗項目完整填滿手機寬度
-// 3. 每個項目依序顯示：項目名稱／輸入框／中值／濃度／需添加量
-// 4. 四個槽位全部改為由上往下排列，不再左右擠壓
-// 5. 保留原本化驗計算公式
-// 6. 保留原本化驗存檔功能
-// 7. 保留原本化驗修改功能
-// 8. 保留登入、Firebase、管理者、QR Code 功能
-// 9. 桌面版功能與計算邏輯不變
+// 1. A線／B線加入各槽槽體積
+// 2. 酸洗槽、清潔槽、預浸槽、棕化槽顯示槽體積
+// 3. 修正預浸槽 CBBA-A 添加算法
+// 4. A線預浸槽 CBBA-A：每 0.1 濃度差添加 1.0 L
+// 5. B線預浸槽 CBBA-A：每 0.1 濃度差添加 0.5 L
+// 6. 化驗成果顯示藥品所屬槽別
+// 7. 保留原本化驗計算公式
+// 8. 保留原本化驗存檔功能
+// 9. 保留原本化驗修改功能
+// 10. 保留登入、Firebase、管理者、QR Code 功能
+// 11. 桌面版功能與其他計算邏輯不變
 //
 // ============================================================
 
@@ -152,7 +154,7 @@ class FirebaseAnalysisManager {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.1.9';
+  static const String version = 'v1.2.0';
 
   static const String adminPassword = '0';
 
@@ -1204,6 +1206,18 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
+
+    // ========================================================
+    // 預浸槽 CBBA-A
+    //
+    // A線：
+    // 每 0.1 濃度差 = 添加 1.0 L
+    //
+    // B線：
+    // 每 0.1 濃度差 = 添加 0.5 L
+    //
+    // 這裡保留獨立設定，避免與棕化槽 CBBA-A 混用。
+    // ========================================================
     'pre_cbba': ChemicalSetting(
       name: 'CBBA-A',
       middle: isA ? 1.5 : 2.5,
@@ -1212,6 +1226,7 @@ Map<String, ChemicalSetting> getSettings(String line) {
       addPerPoint: isA ? 1.0 : 0.5,
       unit: 'L',
     ),
+
     'brown_sulfuric': ChemicalSetting(
       name: '硫酸',
       middle: isA ? 5.6 : 5.4,
@@ -1253,6 +1268,76 @@ double roundToTenth(double value) {
 
 String formatNumber(double value) {
   return value.toStringAsFixed(1);
+}
+
+// ============================================================
+// 槽體積
+// ============================================================
+
+class TankInfo {
+  final String name;
+  final String description;
+  final double volume;
+  final List<String> keys;
+
+  const TankInfo({
+    required this.name,
+    required this.description,
+    required this.volume,
+    required this.keys,
+  });
+}
+
+List<TankInfo> getTankInfo(String line) {
+  final bool isA = line == 'A線';
+
+  return [
+    TankInfo(
+      name: '第一槽｜酸洗槽',
+      description: '硫酸、雙氧水',
+      volume: isA ? 500 : 246,
+      keys: const ['acid_sulfuric', 'acid_h2o2'],
+    ),
+    TankInfo(
+      name: '第二槽｜清潔槽',
+      description: 'HL-II',
+      volume: isA ? 800 : 582,
+      keys: const ['clean_hl2'],
+    ),
+    TankInfo(
+      name: '第三槽｜預浸槽',
+      description: '雙氧水、CBBA-A',
+      volume: isA ? 700 : 440,
+      keys: const ['pre_h2o2', 'pre_cbba'],
+    ),
+    TankInfo(
+      name: '第四槽｜棕化槽',
+      description: '硫酸、雙氧水、CBBA-A、銅離子',
+      volume: isA ? 1400 : 1560,
+      keys: const [
+        'brown_sulfuric',
+        'brown_h2o2',
+        'brown_cbba',
+        'brown_copper',
+      ],
+    ),
+  ];
+}
+
+// ============================================================
+// 藥品所屬槽別
+// ============================================================
+
+String getTankName(String line, String key) {
+  final tanks = getTankInfo(line);
+
+  for (final tank in tanks) {
+    if (tank.keys.contains(key)) {
+      return tank.name;
+    }
+  }
+
+  return '';
 }
 
 class AnalysisPage extends StatefulWidget {
@@ -1325,7 +1410,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final middle = roundToTenth(setting.middle!);
-
     final actual = roundToTenth(current);
 
     if (actual >= middle) {
@@ -1333,6 +1417,28 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }
 
     final deficit = roundToTenth(middle - actual);
+
+    // ========================================================
+    // 預浸槽 CBBA-A 特別處理
+    //
+    // A線：
+    // 每差 0.1 = 1.0 L
+    //
+    // B線：
+    // 每差 0.1 = 0.5 L
+    // ========================================================
+
+    if (key == 'pre_cbba') {
+      final steps = (deficit * 10).round();
+
+      if (steps <= 0) {
+        return 0;
+      }
+
+      final addPerPoint = widget.lineName == 'A線' ? 1.0 : 0.5;
+
+      return roundToTenth(steps * addPerPoint);
+    }
 
     final steps = (deficit * 10).round();
 
@@ -1389,7 +1495,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   double? biteAmount() {
     final before = parse(beforeWeightController.text);
-
     final after = parse(afterWeightController.text);
 
     if (before == null || after == null) {
@@ -1423,6 +1528,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             : add <= 0
             ? '不用添加'
             : '${formatNumber(add)} ${entry.value.unit}',
+        'tank': getTankName(widget.lineName, key),
       };
     }
 
@@ -1528,18 +1634,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  // ==========================================================
-  // 化驗項目
-  //
-  // 手機版：
-  //   項目名稱
-  //   輸入框
-  //   中值
-  //   濃度
-  //   需添加量
-  //
-  // 每一個項目一整排往下，不左右擠壓。
-  // ==========================================================
   Widget chemicalRow(String key) {
     final setting = getSettings(widget.lineName)[key]!;
 
@@ -1553,9 +1647,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
         padding: const EdgeInsets.all(9),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // --------------------------------------------------
-            // 手機版：整個化驗項目由上往下排列
-            // --------------------------------------------------
             if (constraints.maxWidth < 700) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1568,31 +1659,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     ),
                   ),
                   const SizedBox(height: 6),
-
-                  // 輸入框：填滿手機寬度
                   inputField(key),
-
                   const SizedBox(height: 5),
-
-                  // 中值
                   _resultBox('中值', displayMiddle(key)),
-
                   const SizedBox(height: 4),
-
-                  // 濃度
                   _resultBox('濃度', displayConcentration(key, value)),
-
                   const SizedBox(height: 4),
-
-                  // 需添加量
                   _resultBox('需添加量', displayAddAmount(key, value)),
                 ],
               );
             }
 
-            // --------------------------------------------------
-            // 桌面版：維持原本橫向排列
-            // --------------------------------------------------
             return Row(
               children: [
                 Expanded(
@@ -1627,6 +1704,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
   Widget tankCard({
     required String title,
     required String description,
+    required double volume,
     required List<String> keys,
   }) {
     return Card(
@@ -1636,9 +1714,36 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE4DE),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(
+                    '槽體積：${formatNumber(volume)} L',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 1),
             Text(description, style: const TextStyle(color: Colors.grey)),
@@ -1765,6 +1870,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   @override
   Widget build(BuildContext context) {
+    final tanks = getTankInfo(widget.lineName);
+
     return Scaffold(
       appBar: AppBar(title: Text('${widget.lineName}｜藥水化驗'), actions: const []),
       body: Center(
@@ -1797,46 +1904,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
               const SizedBox(height: 7),
 
-              // 第一槽
-              tankCard(
-                title: '第一槽｜酸洗槽',
-                description: '硫酸、雙氧水',
-                keys: const ['acid_sulfuric', 'acid_h2o2'],
-              ),
+              ...tanks.asMap().entries.map((entry) {
+                final tank = entry.value;
 
-              const SizedBox(height: 7),
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 7),
+                  child: tankCard(
+                    title: tank.name,
+                    description: tank.description,
+                    volume: tank.volume,
+                    keys: tank.keys,
+                  ),
+                );
+              }),
 
-              // 第二槽
-              tankCard(
-                title: '第二槽｜清潔槽',
-                description: 'HL-II',
-                keys: const ['clean_hl2'],
-              ),
-
-              const SizedBox(height: 7),
-
-              // 第三槽
-              tankCard(
-                title: '第三槽｜預浸槽',
-                description: '雙氧水、CBBA-A',
-                keys: const ['pre_h2o2', 'pre_cbba'],
-              ),
-
-              const SizedBox(height: 7),
-
-              // 第四槽
-              tankCard(
-                title: '第四槽｜棕化槽',
-                description: '硫酸、雙氧水、CBBA-A、銅離子',
-                keys: const [
-                  'brown_sulfuric',
-                  'brown_h2o2',
-                  'brown_cbba',
-                  'brown_copper',
-                ],
-              ),
-
-              const SizedBox(height: 10),
+              const SizedBox(height: 3),
 
               SizedBox(
                 height: 52,
@@ -1926,12 +2008,14 @@ class _RecordsPageState extends State<RecordsPage> {
       final cloudRecords = await FirebaseAnalysisManager.getRecords();
 
       if (!mounted) return;
+
       setState(() {
         records = cloudRecords;
         loading = false;
       });
     } catch (_) {
       if (!mounted) return;
+
       setState(() {
         loading = false;
         loadError = '無法讀取雲端化驗資料，請確認網路與 Firebase 權限';
@@ -2061,9 +2145,10 @@ class _RecordsPageState extends State<RecordsPage> {
       await _load();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('雲端刪除失敗，請稍後再試')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('雲端刪除失敗，請稍後再試')));
     }
   }
 
@@ -2101,9 +2186,7 @@ class _RecordsPageState extends State<RecordsPage> {
                 final record = records[index];
 
                 final line = record['line'] ?? '';
-
                 final time = record['time'] ?? '';
-
                 final user = record['user'] ?? '';
 
                 return Card(
@@ -2154,6 +2237,8 @@ class _RecordsPageState extends State<RecordsPage> {
   Widget _recordSummary(Map<String, dynamic> record) {
     final chemicals = Map<String, dynamic>.from(record['chemicals'] ?? {});
 
+    final line = record['line'].toString();
+
     final biteValue =
         record['biteAmount'] == null || record['biteAmount'].toString().isEmpty
         ? '-'
@@ -2164,6 +2249,7 @@ class _RecordsPageState extends State<RecordsPage> {
       children: [
         const Divider(),
         const SizedBox(height: 8),
+
         Card(
           color: const Color(0xFFEDE4DE),
           child: Padding(
@@ -2187,28 +2273,43 @@ class _RecordsPageState extends State<RecordsPage> {
             ),
           ),
         ),
+
         const SizedBox(height: 12),
+
         const Text(
           '化驗結果',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
+
         const SizedBox(height: 10),
+
         ...chemicals.entries.map((entry) {
           final key = entry.key;
 
           final data = Map<String, dynamic>.from(entry.value ?? {});
 
-          final setting = getSettings(record['line'].toString())[key];
+          final setting = getSettings(line)[key];
 
           if (setting == null) {
             return const SizedBox();
           }
 
           final input = data['input']?.toString() ?? '';
-
           final concentration = data['concentration']?.toString() ?? '';
-
           final addAmount = data['addAmount']?.toString() ?? '';
+
+          // ====================================================
+          // 顯示槽別
+          //
+          // 新存檔會從 Firebase 讀取 tank。
+          // 舊存檔如果沒有 tank，則由 key 自動判斷。
+          // ====================================================
+
+          final storedTank = data['tank']?.toString() ?? '';
+
+          final tankName = storedTank.isNotEmpty
+              ? storedTank
+              : getTankName(line, key);
 
           Color? addColor;
 
@@ -2222,39 +2323,71 @@ class _RecordsPageState extends State<RecordsPage> {
             margin: const EdgeInsets.only(bottom: 8),
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    flex: 2,
+                  // ==============================================
+                  // 槽別
+                  // ==============================================
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDE4DE),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                     child: Text(
-                      setting.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      tankName,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  Expanded(
-                    child: _smallResult('輸入', input.isEmpty ? '-' : input),
-                  ),
-                  Expanded(
-                    child: _smallResult(
-                      '中值',
-                      setting.middle == null
-                          ? '無中值'
-                          : formatNumber(setting.middle!),
-                    ),
-                  ),
-                  Expanded(
-                    child: _smallResult(
-                      '濃度',
-                      concentration.isEmpty ? '-' : concentration,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: _smallResult(
-                      '需添加量',
-                      addAmount.isEmpty ? '-' : addAmount,
-                      valueColor: addColor,
-                    ),
+
+                  const SizedBox(height: 9),
+
+                  // ==============================================
+                  // 藥品名稱與結果
+                  // ==============================================
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          setting.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Expanded(
+                        child: _smallResult('輸入', input.isEmpty ? '-' : input),
+                      ),
+                      Expanded(
+                        child: _smallResult(
+                          '中值',
+                          setting.middle == null
+                              ? '無中值'
+                              : formatNumber(setting.middle!),
+                        ),
+                      ),
+                      Expanded(
+                        child: _smallResult(
+                          '濃度',
+                          concentration.isEmpty ? '-' : concentration,
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: _smallResult(
+                          '需添加量',
+                          addAmount.isEmpty ? '-' : addAmount,
+                          valueColor: addColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2372,7 +2505,6 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     final middle = roundToTenth(setting.middle!);
-
     final actual = roundToTenth(current);
 
     if (actual >= middle) {
@@ -2380,6 +2512,22 @@ class _RecordEditPageState extends State<RecordEditPage> {
     }
 
     final deficit = roundToTenth(middle - actual);
+
+    // ========================================================
+    // 預浸槽 CBBA-A 特別處理
+    // ========================================================
+
+    if (key == 'pre_cbba') {
+      final steps = (deficit * 10).round();
+
+      if (steps <= 0) {
+        return 0;
+      }
+
+      final addPerPoint = lineName == 'A線' ? 1.0 : 0.5;
+
+      return roundToTenth(steps * addPerPoint);
+    }
 
     final steps = (deficit * 10).round();
 
@@ -2430,6 +2578,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
             : add <= 0
             ? '不用添加'
             : '${formatNumber(add)} ${entry.value.unit}',
+        'tank': getTankName(lineName, key),
       };
     }
 
@@ -2454,9 +2603,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
     final id = widget.record['id']?.toString();
 
     if (id == null || id.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('找不到雲端存檔識別碼')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('找不到雲端存檔識別碼')));
       return;
     }
 
@@ -2464,6 +2613,7 @@ class _RecordEditPageState extends State<RecordEditPage> {
       await FirebaseAnalysisManager.updateRecord(id, updated);
 
       if (!mounted) return;
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('修改已儲存至雲端')));
@@ -2471,9 +2621,10 @@ class _RecordEditPageState extends State<RecordEditPage> {
       Navigator.pop(context);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('雲端修改失敗，請稍後再試')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('雲端修改失敗，請稍後再試')));
     }
   }
 
@@ -2580,6 +2731,8 @@ class _RecordEditPageState extends State<RecordEditPage> {
   Widget build(BuildContext context) {
     final settings = getSettings(lineName);
 
+    final tanks = getTankInfo(lineName);
+
     return Scaffold(
       appBar: AppBar(title: Text('$lineName｜修改化驗資料')),
       body: ListView(
@@ -2595,7 +2748,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
+
           const SizedBox(height: 12),
+
           TextField(
             controller: beforeWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2608,7 +2763,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
+
           const SizedBox(height: 10),
+
           TextField(
             controller: afterWeightController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -2621,7 +2778,9 @@ class _RecordEditPageState extends State<RecordEditPage> {
               border: OutlineInputBorder(),
             ),
           ),
+
           const SizedBox(height: 15),
+
           Card(
             color: const Color(0xFFEDE4DE),
             child: Padding(
@@ -2648,11 +2807,50 @@ class _RecordEditPageState extends State<RecordEditPage> {
               ),
             ),
           ),
+
           const SizedBox(height: 15),
-          ...settings.keys.map(
-            (key) => Column(children: [input(key), resultPreview(key)]),
+
+          ...tanks.map(
+            (tank) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            tank.name,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '槽體積：${formatNumber(tank.volume)} L',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                ...tank.keys
+                    .where((key) => settings.containsKey(key))
+                    .map(
+                      (key) =>
+                          Column(children: [input(key), resultPreview(key)]),
+                    ),
+
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
-          const SizedBox(height: 20),
+
+          const SizedBox(height: 12),
+
           SizedBox(
             height: 55,
             child: ElevatedButton.icon(
