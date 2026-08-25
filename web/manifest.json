@@ -1,14 +1,19 @@
 {
-    "name": "klf_brown",
-    "short_name": "klf_brown",
+    "name": "KLF-棕化",
+    "short_name": "KLF-棕化",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "KLF-棕化藥水分析管理系統",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
+        {
+            "src": "icons/icon-180.png",
+            "sizes": "180x180",
+            "type": "image/png"
+        },
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
