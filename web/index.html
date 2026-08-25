@@ -19,24 +19,24 @@
 
   <!-- ============================================================
        iPhone / iPad 主畫面圖示
-       統一只使用真正的 180x180 Logo
+       使用固定檔名，不使用 ?v= 版本參數
        ============================================================ -->
   <link
     rel="apple-touch-icon"
-    href="icons/icon-180.png?v=1.2.73"
+    href="/icons/apple-touch-icon.png"
   >
 
   <!-- 瀏覽器圖示 -->
   <link
     rel="icon"
     type="image/png"
-    href="icons/icon-180.png?v=1.2.73"
+    href="/icons/apple-touch-icon.png"
   >
 
   <!-- PWA Manifest -->
   <link
     rel="manifest"
-    href="manifest.json?v=1.2.73"
+    href="manifest.json"
   >
 
   <title>KLF-棕化</title>
@@ -46,10 +46,6 @@
 
   <!-- ============================================================
        KLF-棕化 Web App 自動更新
-
-       1. 開啟 App 時檢查 Service Worker
-       2. 發現新版時要求新版立即接管
-       3. 新版接管後自動重新載入
        ============================================================ -->
 
   <script>
@@ -97,11 +93,11 @@
           }
 
         } catch (_) {
-          // Service Worker 不存在或檢查失敗
+          // Service Worker 檢查失敗時照常啟動
         }
       }
 
-      // 第一次開啟
+      // App 第一次開啟
       window.addEventListener(
         'load',
         () => {
