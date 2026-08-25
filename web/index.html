@@ -11,56 +11,48 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
+  <!-- PWA / iPhone -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="KLF-棕化">
 
   <!-- ============================================================
-       iPhone / iPad 主畫面 App 圖示
-       使用真正 180x180 的 Apple Touch Icon
+       iPhone / iPad 主畫面圖示
+       統一只使用真正的 180x180 Logo
        ============================================================ -->
-  <link rel="apple-touch-icon"
-        sizes="180x180"
-        href="icons/Icon-180.png?v=1.2.72">
+  <link
+    rel="apple-touch-icon"
+    href="icons/icon-180.png?v=1.2.73"
+  >
 
-  <link rel="apple-touch-icon"
-        sizes="192x192"
-        href="icons/Icon-192.png?v=1.2.72">
-
-  <!-- ============================================================
-       瀏覽器圖示
-       ============================================================ -->
-  <link rel="icon"
-        type="image/png"
-        sizes="192x192"
-        href="icons/Icon-192.png?v=1.2.72">
-
-  <link rel="icon"
-        type="image/png"
-        href="favicon.png?v=1.2.72">
-
-  <title>KLF-棕化</title>
+  <!-- 瀏覽器圖示 -->
+  <link
+    rel="icon"
+    type="image/png"
+    href="icons/icon-180.png?v=1.2.73"
+  >
 
   <!-- PWA Manifest -->
-  <link rel="manifest"
-        href="manifest.json?v=1.2.72">
+  <link
+    rel="manifest"
+    href="manifest.json?v=1.2.73"
+  >
+
+  <title>KLF-棕化</title>
 </head>
 
 <body>
 
-  <script>
-    // ============================================================
-    // KLF-棕化 Web App 自動更新
-    //
-    // 每次開啟主畫面 App：
-    // 1. 主動檢查 Service Worker 新版本
-    // 2. 發現新版時要求新版立即接管
-    // 3. 新版接管後自動重新載入
-    //
-    // 使用者不需要重新建立主畫面捷徑。
-    // ============================================================
+  <!-- ============================================================
+       KLF-棕化 Web App 自動更新
 
+       1. 開啟 App 時檢查 Service Worker
+       2. 發現新版時要求新版立即接管
+       3. 新版接管後自動重新載入
+       ============================================================ -->
+
+  <script>
     if ('serviceWorker' in navigator) {
 
       let reloadingForUpdate = false;
@@ -91,8 +83,6 @@
 
               await registration.update();
 
-              // 如果新版 Service Worker 已經等待接管，
-              // 要求它立即啟用。
               if (registration.waiting) {
 
                 registration.waiting.postMessage({
@@ -102,16 +92,16 @@
               }
 
             } catch (_) {
-              // 更新檢查失敗時不影響正常開啟 App。
+              // 更新失敗不影響 App 正常使用
             }
           }
 
         } catch (_) {
-          // 沒有 Service Worker 或檢查失敗時照常啟動。
+          // Service Worker 不存在或檢查失敗
         }
       }
 
-      // App 第一次開啟
+      // 第一次開啟
       window.addEventListener(
         'load',
         () => {
@@ -119,7 +109,7 @@
         }
       );
 
-      // 從背景回到前景時再次檢查
+      // 從背景回到前景
       document.addEventListener(
         'visibilitychange',
         () => {
