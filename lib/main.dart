@@ -1,6 +1,6 @@
 // ============================================================
 // KLF-棕化
-// 版本：v1.2.57
+// 版本：v1.3.0
 //
 // 本次版本修改內容：
 // 1. A線／B線加入各槽槽體積
@@ -66,6 +66,8 @@
 // 52. 一般化驗人員只能查看存檔，只有管理者可修改
 // 53. 管理者修改後保留原本化驗人員名稱
 // 54. 存檔中的中文／泰文顯示依目前系統語言同步切換
+// 55. v1.3.0 G站化驗流程 2.0：手機導引、今日狀態、7日趨勢、防誤輸入、結果總覽與操作優化
+// 56. 保留既有 Firebase、化驗公式、槽體積、存檔與中文／泰文功能
 // ============================================================
 
 import 'dart:convert';
@@ -300,7 +302,7 @@ class FirebaseAnalysisManager {
 
 class KLFConfig {
   static const String appName = 'KLF-棕化';
-  static const String version = 'v1.2.72';
+  static const String version = 'v1.3.0';
 
   static const String adminPassword = '0';
 
@@ -707,6 +709,34 @@ String tr(String text) {
     '目前沒有記錄': 'ไม่มีบันทึก',
 
     '槽體積：': 'ปริมาตรถัง: ',
+    '今日化驗狀態': 'สถานะการวิเคราะห์วันนี้',
+    '今日化驗': 'การวิเคราะห์วันนี้',
+    '已完成': 'เสร็จแล้ว',
+    '未完成': 'ยังไม่เสร็จ',
+    '尚無今日紀錄': 'ยังไม่มีบันทึกวันนี้',
+    '最近 7 天化驗趨勢': 'แนวโน้มการวิเคราะห์ 7 วันล่าสุด',
+    '化驗趨勢': 'แนวโน้มการวิเคราะห์',
+    '流程模式': 'โหมดขั้นตอน',
+    '完整模式': 'โหมดเต็ม',
+    '第': 'ขั้นตอนที่ ',
+    '步': '',
+    '下一步': 'ขั้นตอนถัดไป',
+    '上一步': 'ขั้นตอนก่อนหน้า',
+    '開始化驗': 'เริ่มการวิเคราะห์',
+    '檢查結果': 'ตรวจสอบผล',
+    '全部完成': 'เสร็จทั้งหมด',
+    '目前步驟': 'ขั้นตอนปัจจุบัน',
+    '請完成目前步驟後再繼續': 'กรุณาทำขั้นตอนปัจจุบันให้เสร็จก่อนดำเนินการต่อ',
+    '輸入值不能為負數': 'ค่าที่ป้อนไม่สามารถติดลบได้',
+    '請輸入有效數值': 'กรุณาป้อนค่าตัวเลขที่ถูกต้อง',
+    '化驗流程 2.0': 'ขั้นตอนการวิเคราะห์ 2.0',
+    '結果總覽': 'ภาพรวมผลลัพธ์',
+    '今日狀態': 'สถานะวันนี้',
+    '已輸入': 'ป้อนแล้ว',
+    '尚未輸入': 'ยังไม่ได้ป้อน',
+    '正常': 'ปกติ',
+    '異常': 'ผิดปกติ',
+    '請確認數值': 'โปรดตรวจสอบค่า',
   };
 
   return m[text] ?? text;
@@ -2632,6 +2662,151 @@ class _CombinedAnalysisPageState extends State<CombinedAnalysisPage> {
   }
 }
 
+class DailyAnalysisStatusPanel extends StatefulWidget {
+  final String userName;
+  const DailyAnalysisStatusPanel({super.key, required this.userName});
+
+  @override
+  State<DailyAnalysisStatusPanel> createState() =>
+      _DailyAnalysisStatusPanelState();
+}
+
+class _DailyAnalysisStatusPanelState extends State<DailyAnalysisStatusPanel> {
+  List<Map<String, dynamic>> _records = [];
+  bool _loading = true;
+
+  final List<String> _lines = const ['A線', 'B線', 'D線', 'E線'];
+
+  @override
+  void initState() {
+    super.initState();
+    _records = LocalStorageHelper.getRecords();
+    _loading = false;
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final records = await FirebaseAnalysisManager.getRecords().timeout(
+        const Duration(seconds: 6),
+      );
+      if (!mounted) return;
+      setState(() {
+        _records = records;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  bool _hasToday(String line) {
+    final now = DateTime.now();
+    return _records.any((r) {
+      final recordLine = r['line']?.toString() ?? '';
+      final merge = r['mergeType']?.toString() ?? '';
+      final time = DateTime.tryParse(r['time']?.toString() ?? '');
+      if (time == null) return false;
+      final sameDay =
+          time.toLocal().year == now.year &&
+          time.toLocal().month == now.month &&
+          time.toLocal().day == now.day;
+      return sameDay && (recordLine == line || merge == line);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.of(context).size.width < 650;
+    return Card(
+      elevation: 2,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: EdgeInsets.all(mobile ? 10 : 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.fact_check_outlined, color: Color(0xFF4B2714)),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    tr('今日化驗狀態'),
+                    style: TextStyle(
+                      fontSize: mobile ? 16 : 19,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (_loading)
+                  const SizedBox(
+                    width: 17,
+                    height: 17,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 9),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: mobile ? 2 : 4,
+              crossAxisSpacing: 7,
+              mainAxisSpacing: 7,
+              childAspectRatio: mobile ? 3.1 : 3.0,
+              children: _lines.map((line) {
+                final done = _hasToday(line);
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: done
+                        ? Colors.green.withOpacity(.10)
+                        : Colors.orange.withOpacity(.08),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: done
+                          ? Colors.green.withOpacity(.25)
+                          : Colors.orange.withOpacity(.25),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        done ? Icons.check_circle : Icons.schedule,
+                        size: 18,
+                        color: done ? Colors.green : Colors.orange,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          tr(line),
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      Text(
+                        done ? tr('已完成') : tr('未完成'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: done ? Colors.green : Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class HomePage extends StatelessWidget {
   final String userName;
 
@@ -2789,6 +2964,8 @@ class HomePage extends StatelessWidget {
                     children: [
                       _buildHomeTitle(isMobile),
                       SizedBox(height: isMobile ? 9 : 18),
+                      DailyAnalysisStatusPanel(userName: userName),
+                      SizedBox(height: isMobile ? 10 : 16),
 
                       _buildLineGroup(
                         context,
@@ -3701,6 +3878,9 @@ class AnalysisPage extends StatefulWidget {
 class _AnalysisPageState extends State<AnalysisPage> {
   final Map<String, TextEditingController> controllers = {};
 
+  int _guidedStep = 0;
+  bool _guidedMode = true;
+
   final TextEditingController beforeWeightController = TextEditingController();
 
   final TextEditingController afterWeightController = TextEditingController();
@@ -3896,7 +4076,301 @@ class _AnalysisPageState extends State<AnalysisPage> {
     return (before - after) / 100 * 21910;
   }
 
+  List<String> _guidedTitles() => [
+    tr('咬食量'),
+    ...getTankInfo(widget.lineName).map((tank) => tr(tank.name)),
+    tr('結果總覽'),
+  ];
+
+  bool _stepComplete(int step) {
+    if (step == 0) {
+      final before = beforeWeightController.text.trim();
+      final after = afterWeightController.text.trim();
+      if (before.isEmpty && after.isEmpty) return true;
+      return parse(before) != null &&
+          parse(after) != null &&
+          parse(before)! >= parse(after)! &&
+          parse(before)! >= 0 &&
+          parse(after)! >= 0;
+    }
+    final tanks = getTankInfo(widget.lineName);
+    if (step >= 1 && step <= tanks.length) {
+      return tanks[step - 1].keys.every(
+        (key) => controllers[key]?.text.trim().isNotEmpty ?? false,
+      );
+    }
+    return true;
+  }
+
+  void _showValidation(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  bool _validateAllInputs() {
+    final fields = <String>[...controllers.keys];
+    for (final key in fields) {
+      final value = controllers[key]?.text.trim() ?? '';
+      if (value.isEmpty) continue;
+      final n = parse(value);
+      if (n == null) {
+        _showValidation(
+          '${tr('請確認數值')}：${tr(getSettings(widget.lineName)[key]?.name ?? key)}',
+        );
+        return false;
+      }
+      if (n < 0) {
+        _showValidation(
+          '${tr('輸入值不能為負數')}：${tr(getSettings(widget.lineName)[key]?.name ?? key)}',
+        );
+        return false;
+      }
+    }
+    final before = beforeWeightController.text.trim();
+    final after = afterWeightController.text.trim();
+    if (before.isNotEmpty && (parse(before) == null || parse(before)! < 0)) {
+      _showValidation(tr('請輸入有效數值'));
+      return false;
+    }
+    if (after.isNotEmpty && (parse(after) == null || parse(after)! < 0)) {
+      _showValidation(tr('請輸入有效數值'));
+      return false;
+    }
+    if (parse(before) != null &&
+        parse(after) != null &&
+        parse(before)! < parse(after)!) {
+      _showValidation('${tr('請確認數值')}：${tr('未棕化重量')} ≥ ${tr('已棕化重量')}');
+      return false;
+    }
+    return true;
+  }
+
+  void _nextGuidedStep() {
+    if (!_validateAllInputs()) return;
+    if (!_stepComplete(_guidedStep)) {
+      _showValidation(tr('請完成目前步驟後再繼續'));
+      return;
+    }
+    final max = getTankInfo(widget.lineName).length + 1;
+    if (_guidedStep < max) setState(() => _guidedStep++);
+  }
+
+  void _previousGuidedStep() {
+    if (_guidedStep > 0) setState(() => _guidedStep--);
+  }
+
+  Widget _guidedHeader() {
+    final titles = _guidedTitles();
+    final max = titles.length - 1;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.route_outlined, color: Color(0xFF4B2714)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    tr('化驗流程 2.0'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                ChoiceChip(
+                  label: Text(tr('流程模式')),
+                  selected: _guidedMode,
+                  onSelected: (_) => setState(() => _guidedMode = true),
+                ),
+                const SizedBox(width: 5),
+                ChoiceChip(
+                  label: Text(tr('完整模式')),
+                  selected: !_guidedMode,
+                  onSelected: (_) => setState(() => _guidedMode = false),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: List.generate(titles.length, (i) {
+                final active = i == _guidedStep;
+                final done = i < _guidedStep;
+                return Expanded(
+                  child: Container(
+                    margin: EdgeInsets.only(
+                      right: i == titles.length - 1 ? 0 : 4,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 6,
+                      horizontal: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: active
+                          ? const Color(0xFF6B3F22)
+                          : done
+                          ? Colors.green.withOpacity(.12)
+                          : Colors.grey.withOpacity(.08),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          done
+                              ? Icons.check_circle
+                              : active
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          size: 15,
+                          color: active
+                              ? Colors.white
+                              : done
+                              ? Colors.green
+                              : Colors.grey,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: active ? Colors.white : Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 7),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${tr('目前步驟')}：${titles[_guidedStep]}',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                Text(
+                  '${_guidedStep + 1}/$max',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _guidedNavigation({required bool showSave}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _guidedStep == 0 ? null : _previousGuidedStep,
+              icon: const Icon(Icons.arrow_back),
+              label: Text(tr('上一步')),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: showSave
+                ? ElevatedButton.icon(
+                    onPressed: _confirmAndSaveRecord,
+                    icon: const Icon(Icons.save_outlined),
+                    label: Text(tr('確認存檔')),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: _nextGuidedStep,
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(tr('下一步')),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildGuidedContent(List<TankInfo> tanks) {
+    final max = tanks.length + 1;
+    if (_guidedStep == 0)
+      return [biteCard(), _guidedNavigation(showSave: false)];
+    if (_guidedStep <= tanks.length) {
+      final tank = tanks[_guidedStep - 1];
+      return [
+        tankCard(
+          title: tank.name,
+          description: tank.description,
+          volume: tank.volume,
+          keys: tank.keys,
+        ),
+        _guidedNavigation(showSave: false),
+      ];
+    }
+    return [
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                tr('結果總覽'),
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 7),
+              ...tanks.map((tank) {
+                final complete = tank.keys.every(
+                  (key) => controllers[key]?.text.trim().isNotEmpty ?? false,
+                );
+                return ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    complete ? Icons.check_circle : Icons.warning_amber_rounded,
+                    color: complete ? Colors.green : Colors.orange,
+                  ),
+                  title: Text(
+                    tr(tank.name),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(complete ? tr('化驗完成') : tr('尚未完成')),
+                );
+              }),
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.water_drop_outlined),
+                title: Text(tr('咬食量')),
+                trailing: Text(
+                  biteAmount() == null ? '-' : formatNumber(biteAmount()!),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      _guidedNavigation(showSave: true),
+    ];
+  }
+
   Future<void> _confirmAndSaveRecord() async {
+    if (!_validateAllInputs()) return;
     final settings = getSettings(widget.lineName);
     final incomplete = settings.entries
         .where((entry) => controllers[entry.key]?.text.trim().isEmpty ?? true)
@@ -4896,37 +5370,41 @@ class _AnalysisPageState extends State<AnalysisPage> {
               ),
               SizedBox(height: 7),
 
-              biteCard(),
+              _guidedHeader(),
 
-              SizedBox(height: 7),
-
-              ...tanks.asMap().entries.map((entry) {
-                final tank = entry.value;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 7),
-                  child: tankCard(
-                    title: tank.name,
-                    description: tank.description,
-                    volume: tank.volume,
-                    keys: tank.keys,
-                  ),
-                );
-              }),
-
-              SizedBox(height: 3),
-
-              SizedBox(
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: _confirmAndSaveRecord,
-                  icon: Icon(Icons.save_outlined),
-                  label: Text(
-                    tr('化驗完成並存檔'),
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              if (_guidedMode && MediaQuery.of(context).size.width < 700)
+                ..._buildGuidedContent(tanks)
+              else ...[
+                biteCard(),
+                SizedBox(height: 7),
+                ...tanks.asMap().entries.map((entry) {
+                  final tank = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 7),
+                    child: tankCard(
+                      title: tank.name,
+                      description: tank.description,
+                      volume: tank.volume,
+                      keys: tank.keys,
+                    ),
+                  );
+                }),
+                SizedBox(height: 3),
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: _confirmAndSaveRecord,
+                    icon: Icon(Icons.save_outlined),
+                    label: Text(
+                      tr('化驗完成並存檔'),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
 
               SizedBox(height: 7),
 
@@ -4971,6 +5449,105 @@ class _AnalysisPageState extends State<AnalysisPage> {
     afterWeightController.dispose();
 
     super.dispose();
+  }
+}
+
+class SevenDayTrendCard extends StatelessWidget {
+  final List<Map<String, dynamic>> records;
+  const SevenDayTrendCard({super.key, required this.records});
+
+  int _count(DateTime day) {
+    return records.where((r) {
+      final dt = DateTime.tryParse(r['time']?.toString() ?? '')?.toLocal();
+      if (dt == null) return false;
+      return dt.year == day.year && dt.month == day.month && dt.day == day.day;
+    }).length;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final days = List.generate(
+      7,
+      (i) => DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(Duration(days: 6 - i)),
+    );
+    final counts = days.map(_count).toList();
+    final maxCount = counts.fold<int>(1, (a, b) => a > b ? a : b);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.show_chart, color: Color(0xFF2F6FB3)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    tr('最近 7 天化驗趨勢'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${records.length}',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 90,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: List.generate(7, (i) {
+                  final h = counts[i] == 0
+                      ? 4.0
+                      : 8 + 58 * counts[i] / maxCount;
+                  final label = '${days[i].month}/${days[i].day}';
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${counts[i]}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Container(
+                            height: h,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6B3F22),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(5),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(label, style: const TextStyle(fontSize: 9)),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -5315,6 +5892,8 @@ class _RecordsPageState extends State<RecordsPage> {
                 ],
               ),
             ),
+          SevenDayTrendCard(records: records),
+          const SizedBox(height: 8),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(9),
