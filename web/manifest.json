@@ -1,11 +1,11 @@
 {
-    "name": "KLF-棕化",
-    "short_name": "KLF-棕化",
+    "name": "KLF Brown",
+    "short_name": "KLF Brown",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "KLF-棕化藥水分析管理系統",
+    "description": "KLF Brown Chemical Analysis System",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
